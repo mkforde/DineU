@@ -36,6 +36,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "b834836c-3ee5-43f1-acbb-163d103fbf46"
+      }
+    },
+    "owner": "mikefive2"
   }
 }
