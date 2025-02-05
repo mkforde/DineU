@@ -1,0 +1,39 @@
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Expo and React Native build artifacts
+.expo/
+.expo-shared/
+dist/
+web-build/
+android/
+ios/
+build/
+*.log
+
+# Babel and Metro bundler caches
+.babelrc
+.cache/
+metro.config.js
+packager-info.json
+react-native-packager-info.json
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Git-related
+.git/
+
