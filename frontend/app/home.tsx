@@ -101,6 +101,54 @@ export default function WelcomeScreen() {
   };
 
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Check cache first
+        const { data: cachedMenu } = await supabase
+          .from('menu_cache')
+          .select('*')
+          .gt('last_updated', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+        if (cachedMenu && cachedMenu.length > 0) {
+          console.log('Using cached menu data:', {
+            totalItems: cachedMenu.length,
+            mealTypes: [...new Set(cachedMenu.map(item => item.mealType))],
+            diningHalls: [...new Set(cachedMenu.map(item => item.diningHall))]
+          });
+        } else {
+          // Fetch fresh menu data
+          console.log('Fetching fresh menu data...');
+          const menuResponse = await fetch('http://localhost:3000/api/dining');
+          const menuResult = await menuResponse.json();
+          console.log('Menu API Response:', {
+            success: menuResult.success,
+            mealPeriods: Object.keys(menuResult.data || {}),
+            timestamp: menuResult.timestamp
+          });
+        }
+
+        // Fetch recommendations
+        console.log('Fetching recommendations...');
+        const recommendResponse = await fetch('http://localhost:3000/api/dining/recommend');
+        const recommendResult = await recommendResponse.json();
+        console.log('Recommendation API Response:', {
+          success: recommendResult.success,
+          recommendations: recommendResult.data?.recommendations?.map(rec => ({
+            diningHall: rec.dining_hall,
+            score: rec.avgHealthScore,
+            menuSize: rec.menuSize
+          }))
+        });
+
+      } catch (err) {
+        console.error('Error fetching data:', err);
+      }
+    };
+
+    fetchData();
+  }, []); // Empty dependency array means this runs once on component mount
+
+  useEffect(() => {
     async function createProfileIfNeeded() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {

@@ -8,10 +8,10 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 app.use(cors());
 
-// Initialize Supabase client
+// Initialize Supabase client using same config as frontend
 const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY
+    'https://eilgfvfxoaptkbqirdmj.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVpbGdmdmZ4b2FwdGticWlyZG1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzkwMzMzNzksImV4cCI6MjA1NDYwOTM3OX0.ctCqhZDGK8l1Xb5cR8uhaBBjI7bWydAUF5iFN1QoxSs'
 );
 
 // Middleware to attach supabase client to requests
@@ -27,7 +27,7 @@ app.use('/api/directory', directoryRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
 
 module.exports = app; 
