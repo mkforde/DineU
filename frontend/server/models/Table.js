@@ -18,7 +18,7 @@ const TableSchema = new mongoose.Schema({
     required: true,
     min: 1
   },
-  topicOfDiscussion: {
+  vibe: {
     type: String,
     required: true
   },
@@ -29,7 +29,28 @@ const TableSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  pin: {
+    type: String,
+    required: true,
+    unique: true,
+    default: () => `do2${Math.floor(10 + Math.random() * 90).toString()}` // generates do2XX format
   }
+});
+
+// Add a pre-save hook to ensure unique PIN
+TableSchema.pre('save', async function(next) {
+  if (this.isNew) {
+    let pinExists = true;
+    while (pinExists) {
+      const pin = `do2${Math.floor(10 + Math.random() * 90).toString()}`; // generates do2XX format
+      pinExists = await this.constructor.findOne({ pin });
+      if (!pinExists) {
+        this.pin = pin;
+      }
+    }
+  }
+  next();
 });
 
 module.exports = mongoose.model('Table', TableSchema); 
