@@ -6,7 +6,6 @@ import { useNavigation } from '@react-navigation/native';
 
 
 function CustomBottomNav() {
-  const [menuVisible, setMenuVisible] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
   const navigation = useNavigation(); // Access navigation object
   
@@ -47,7 +46,6 @@ export default function WelcomeScreen() {
   const name = "Alice";
   const recommendedDining = "John Jay";
   const { height } = useWindowDimensions(); // Auto-updating height
-  const navigation = useNavigation(); // Access navigation object
 
  
   const DiningButton = ({ title, image, use, capacity }) => {
@@ -66,10 +64,7 @@ export default function WelcomeScreen() {
     }
 
     return (
-      <TouchableOpacity 
-      style={styles.diningButton} 
-      onPress={() => navigation.navigate(title.replace(/\s+/g, '') + "Menu")} // Converts "John Jay" → "JohnJayMenu"
-    >
+      <TouchableOpacity style={styles.diningButton}>
         <ImageBackground source={image} resizeMode="cover" style={styles.imageBackground}>
           <View style={styles.overlay} />
           <Text style={styles.buttonText}>{title}</Text>
@@ -80,7 +75,6 @@ export default function WelcomeScreen() {
             <View style={[styles.progressBarFill, { width: `${fillPercentage * 100}%`, backgroundColor: barColor }]} />
           </View>
         </ImageBackground>
-
       </TouchableOpacity>
     );
   };
@@ -126,7 +120,7 @@ export default function WelcomeScreen() {
           <Text style={styles.subtitleD}>Based on your history & preferences.</Text>
           <View style = {styles.dining}>
             <View style={styles.diningRow}>
-              <DiningButton title="John Jay" image={require("../assets/images/johnjay.jpg")} use={55} capacity = {80}  />
+              <DiningButton title="John Jay" image={require("../assets/images/johnjay.jpg")} use={55} capacity = {80} />
               <DiningButton title="JJ's" image={require("../assets/images/jjs.jpg")} use={70} capacity = {70}  />
             </View>
             <View style={styles.diningRow}>

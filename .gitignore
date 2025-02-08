@@ -18,7 +18,6 @@ build/
 # Babel and Metro bundler caches
 .babelrc
 .cache/
-metro.config.js
 packager-info.json
 react-native-packager-info.json
 
