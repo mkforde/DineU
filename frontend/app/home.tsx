@@ -1,9 +1,17 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useState } from 'react';
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
+import { useRouter } from 'expo-router';
+import { auth } from '../config/firebase';
+import { supabase } from '../lib/supabase';
 import { useNavigation } from '@react-navigation/native';
 
-
+interface DiningButtonProps {
+  title: string;
+  image: any;  // or more specific type if needed
+  use: number;
+  capacity: number;
+}
 
 function CustomBottomNav() {
   const [menuVisible, setMenuVisible] = useState(false);
@@ -42,15 +50,23 @@ function CustomBottomNav() {
   );
 }
 
-
 export default function WelcomeScreen() {
   const name = "Alice";
   const recommendedDining = "John Jay";
   const { height } = useWindowDimensions(); // Auto-updating height
-  const navigation = useNavigation(); // Access navigation object
+  const router = useRouter();
 
- 
-  const DiningButton = ({ title, image, use, capacity }) => {
+  const handleExplorePress = () => {
+    if (!auth.currentUser) {
+      router.push('/login');
+    } else {
+      // Handle explore action for logged in users
+      router.push('/explore'); // or whatever your explore page route is
+    }
+  };
+
+  const DiningButton = ({ title, image, use, capacity }: DiningButtonProps) => {
+    const navigation = useNavigation();
     const fillPercentage = use / capacity;
     
     // Determine bar color
@@ -67,9 +83,9 @@ export default function WelcomeScreen() {
 
     return (
       <TouchableOpacity 
-      style={styles.diningButton} 
-      onPress={() => navigation.navigate(title.replace(/\s+/g, '') + "Menu")} // Converts "John Jay" → "JohnJayMenu"
-    >
+        style={styles.diningButton} 
+        onPress={() => navigation.navigate(title.replace(/\s+/g, '') + "Menu")}
+      >
         <ImageBackground source={image} resizeMode="cover" style={styles.imageBackground}>
           <View style={styles.overlay} />
           <Text style={styles.buttonText}>{title}</Text>
@@ -80,10 +96,37 @@ export default function WelcomeScreen() {
             <View style={[styles.progressBarFill, { width: `${fillPercentage * 100}%`, backgroundColor: barColor }]} />
           </View>
         </ImageBackground>
-
       </TouchableOpacity>
     );
   };
+
+  useEffect(() => {
+    async function createProfileIfNeeded() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const email = session.user.email;
+        const uni = email?.split('@')[0];
+
+        // Create profile record
+        const { error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: session.user.id,
+            uni: uni,
+            email: email
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Error creating profile:', createError);
+          console.log('Session:', session);
+        }
+      }
+    }
+
+    createProfileIfNeeded();
+  }, []);
 
   return (
   
@@ -135,8 +178,11 @@ export default function WelcomeScreen() {
             </View>
           </View>
           <View style = {styles.buttonDiv}>
-            <TouchableOpacity style={styles.allLoc}>
-                <Text style={styles.buttonLoc}>See all Locations</Text>
+            <TouchableOpacity 
+              style={styles.allLoc} 
+              onPress={handleExplorePress}
+            >
+              <Text style={styles.buttonLoc}>See all Locations</Text>
             </TouchableOpacity>
           </View>
 
