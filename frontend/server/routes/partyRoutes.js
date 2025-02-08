@@ -81,3 +81,19 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router; 
+
+// # Create a party
+// curl -X POST http://localhost:3000/api/parties \
+// -H "Content-Type: application/json" \
+// -d '{"members": ["user1"], "diningHallName": "North Dining", "tableSize": 4, "topicOfDiscussion": "AI and Ethics"}'
+
+// # Join a party
+// curl -X PATCH http://localhost:3000/api/parties/[partyId]/join \
+// -H "Content-Type: application/json" \
+// -d '{"memberId": "user2"}'
+// # Toggle lock
+// curl -X PATCH http://localhost:3000/api/parties/[partyId]/toggle-lock \
+// -H "Content-Type: application/json"
+
+// # Delete a party
+// curl -X DELETE http://localhost:3000/api/parties/[partyId]
