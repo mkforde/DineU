@@ -1,9 +1,18 @@
 import React from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity } from "react-native";
-import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
+import { auth } from '../config/firebase';
 
 export default function WelcomeScreen() {
-  const navigation = useNavigation(); // Access navigation object
+  const router = useRouter();
+
+  const handleExplore = () => {
+    if (!auth.currentUser) {
+      router.push({ pathname: '/login' });
+    } else {
+      router.push({ pathname: '/home' });
+    }
+  };
 
   return (
     <View style={styles.body}>
@@ -41,8 +50,8 @@ export default function WelcomeScreen() {
           {/* Button with Navigation */}
           <TouchableOpacity 
             style={styles.button} 
-            onPress={() => navigation.navigate('home')} // Navigates to Home.jsx
-          >
+            onPress={handleExplore}
+          > 
             <Text style={styles.buttonText}>EXPLORE NOW</Text>
           </TouchableOpacity>
         </View>

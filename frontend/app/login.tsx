@@ -1,108 +1,167 @@
-import { Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView } from 'react-native'
-import React, { useState } from 'react'
-import { auth } from '../config/firebase'
-import { sendSignInLinkToEmail } from 'firebase/auth'
-import { router } from 'expo-router'
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, ActivityIndicator, View } from 'react-native'
+import React, { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { useRouter } from 'expo-router'
 
 const index = () => {
-  const [email, setEmail] = useState('');
+  const router = useRouter();
+  const [uni, setUni] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Listen for auth state changes
+  useEffect(() => {
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        router.replace('/home');
+      }
+    });
+  }, []);
+
+  const isValidUNI = (uni: string) => {
+    // Matches 2-3 letters followed by 4 digits (e.g., ma4368)
+    const uniRegex = /^[a-zA-Z]{2,3}\d{4}$/;
+    return uniRegex.test(uni);
+  };
 
   const sendSignInLink = async () => {
-    try {
-      // Configure sign-in link settings
-      const actionCodeSettings = {
-        url: 'yourapp://', // Your app's deep link URL
-        handleCodeInApp: true,
-        iOS: {
-          bundleId: 'your.bundle.id'
-        },
-        android: {
-          packageName: 'your.package.name',
-          installApp: true,
-        },
-        dynamicLinkDomain: 'yourapp.page.link' // Your Firebase Dynamic Links domain
-      };
+    setError('');
+    if (!isValidUNI(uni)) {
+      setError('Please enter a valid UNI (e.g., ma4368)');
+      return;
+    }
 
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      
-      // Save the email for verification when user clicks the link
-      await AsyncStorage.setItem('emailForSignIn', email);
-      
-      alert('Check your email for the sign-in link!');
+    setLoading(true);
+    try {
+      const email = `${uni}@columbia.edu`;
+      console.log('Attempting to send OTP to:', email);
+
+      // Only send login link
+      const { data, error: signInError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: 'http://localhost:8081/home'
+        }
+      });
+
+      if (signInError) {
+        setError(signInError.message);
+        return;
+      }
+
+      setUni('');
+      alert(`Sign-in link sent to ${email}`);
     } catch (error: any) {
-      console.log(error);
-      alert('Error sending link: ' + error.message);
+      console.error('Caught error:', error);
+      setError(error.message || 'An error occurred');
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Login</Text>
-      <TextInput 
-        style={styles.textInput} 
-        placeholder="University Email" 
-        value={email} 
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TouchableOpacity style={styles.button} onPress={sendSignInLink}>
-        <Text style={styles.text}>Send Sign-in Link</Text>
+      <Text style={styles.title}>Columbia Login</Text>
+      <Text style={styles.subtitle}>Enter your UNI to sign in</Text>
+      
+      <View style={styles.inputContainer}>
+        <TextInput 
+          style={styles.textInput} 
+          placeholder="UNI (e.g., ma4368)" 
+          value={uni} 
+          onChangeText={setUni}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <Text style={styles.emailSuffix}>@columbia.edu</Text>
+      </View>
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <TouchableOpacity 
+        style={[styles.button, loading && styles.buttonDisabled]} 
+        onPress={sendSignInLink}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.text}>Send Sign-in Link</Text>
+        )}
       </TouchableOpacity>
     </SafeAreaView>
   )
 }
-
-export default index
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FAFAFA', // A softer white for a modern, minimalist background
+    backgroundColor: '#FAFAFA',
+    padding: 20,
   },
   title: {
-    fontSize: 28, // A bit larger for a more striking appearance
-    fontWeight: '800', // Extra bold for emphasis
-    marginBottom: 40, // Increased space for a more airy, open feel
-    color: '#1A237E', // A deep indigo for a sophisticated, modern look
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 10,
+    color: '#1A237E',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 30,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '90%',
+    marginBottom: 5,
   },
   textInput: {
-    height: 50, // Standard height for elegance and simplicity
-    width: '90%', // Full width for a more expansive feel
-    backgroundColor: '#FFFFFF', // Pure white for contrast against the container
-    borderColor: '#E8EAF6', // A very light indigo border for subtle contrast
+    flex: 1,
+    height: 50,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E8EAF6',
     borderWidth: 2,
-    borderRadius: 15, // Softly rounded corners for a modern, friendly touch
-    marginVertical: 15,
-    paddingHorizontal: 25, // Generous padding for ease of text entry
-    fontSize: 16, // Comfortable reading size
-    color: '#3C4858', // A dark gray for readability with a hint of warmth
-    shadowColor: '#9E9E9E', // A medium gray shadow for depth
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4, // Slightly elevated for a subtle 3D effect
+    borderRadius: 15,
+    paddingHorizontal: 20,
+    fontSize: 16,
+    color: '#3C4858',
+    shadowColor: '#9E9E9E',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  emailSuffix: {
+    marginLeft: 10,
+    color: '#666',
+    fontSize: 16,
+  },
+  error: {
+    color: '#D32F2F',
+    marginTop: 5,
+    marginBottom: 15,
+    fontSize: 14,
   },
   button: {
     width: '90%',
-    marginVertical: 15,
-    backgroundColor: '#5C6BC0', // A lighter indigo to complement the title color
-    padding: 20,
-    borderRadius: 15, // Matching rounded corners for consistency
+    height: 50,
+    backgroundColor: '#1A237E',
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#5C6BC0', // Shadow color to match the button for a cohesive look
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 5,
-    elevation: 5,
+    marginTop: 20,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   text: {
-    color: '#FFFFFF', // Maintained white for clear visibility
-    fontSize: 18, // Slightly larger for emphasis
-    fontWeight: '600', // Semi-bold for a balanced weight
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
   }
 });
+
+export default index;
