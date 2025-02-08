@@ -1,15 +1,10 @@
 // Import expo environmental variables
-import Constants from 'expo-constants';
-
 // if getting error with typescript https://github.com/firebase/firebase-js-sdk/issues/8332
 
 // Import the functions you need from the SDKs you need
-
 import { initializeApp } from "firebase/app";
-import { initializeAuth, getReactNativePersistance } from "firebase/auth";
-import { ReactNativeAsyncStorage } from '@react-native-async-storage/async-storage';
-
-// TODO: Add SDKs for Firebase products that you want to use
+import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
@@ -25,5 +20,5 @@ const firebaseConfig = {
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
 export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistance(ReactNativeAsyncStorage)
+  persistence: getReactNativePersistence(ReactNativeAsyncStorage)
 });
