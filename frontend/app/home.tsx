@@ -1,10 +1,7 @@
 import React from "react";
 import { useState } from 'react';
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
-
-
-
-
+import TableChat from '../components/TableChat';
 
 export default function WelcomeScreen() {
   const name = "Alice";
@@ -103,6 +100,7 @@ export default function WelcomeScreen() {
       </ScrollView>
    
     </View>
+    <TableChat />
   </View>
   );
  
