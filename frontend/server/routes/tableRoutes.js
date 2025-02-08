@@ -26,6 +26,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const table = new Table({
     members: req.body.members,
+    owner: req.body.members[0],
     diningHallName: req.body.diningHallName,
     tableSize: req.body.tableSize,
     topicOfDiscussion: req.body.topicOfDiscussion,
@@ -77,11 +78,17 @@ router.patch('/:id/toggle-lock', async (req, res) => {
   }
 });
 
-// Delete a table
+// Delete a table (with owner check)
 router.delete('/:id', async (req, res) => {
   try {
     const table = await Table.findById(req.params.id);
     if (!table) return res.status(404).json({ message: 'Table not found' });
+    
+    // Check if the requester is the owner
+    const requesterId = req.body.userId; // assuming you send userId in request body
+    if (table.owner !== requesterId) {
+      return res.status(403).json({ message: 'Only the table owner can delete this table' });
+    }
 
     await table.deleteOne();
     res.json({ message: 'Table deleted' });
@@ -106,5 +113,7 @@ module.exports = router;
 // curl -X PATCH http://localhost:3000/api/tables/[tableId]/toggle-lock \
 // -H "Content-Type: application/json"
 
-// # Delete a table
-// curl -X DELETE http://localhost:3000/api/tables/[tableId] 
+// # Delete a table (now requires userId in body)
+// curl -X DELETE http://localhost:3000/api/tables/[tableId] \
+// -H "Content-Type: application/json" \
+// -d '{"userId": "user1"}' 

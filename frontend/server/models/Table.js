@@ -5,6 +5,10 @@ const TableSchema = new mongoose.Schema({
     type: String,  // might wanna change this to ObjectId when we implement user authentication
     required: true
   }],
+  owner: {
+    type: String, // will be the ID of the user who created the table
+    required: true
+  },
   diningHallName: {
     type: String,
     required: true
