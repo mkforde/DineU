@@ -1,61 +1,59 @@
 import React from "react";
-import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Image, StyleSheet, ImageBackground, TouchableOpacity, Text } from "react-native";
 import { useRouter } from 'expo-router';
 import { auth } from '../config/firebase';
 
-export default function WelcomeScreen() {
-  const router = useRouter();
+type MenuItem = {
+  mealType: string;
+  diningHall: string;
+  hours: string;
+  foodType: string;
+  foodName: string;
+};
 
-  const handleExplore = () => {
-    if (!auth.currentUser) {
-      router.push({ pathname: '/login' });
-    } else {
-      router.push({ pathname: '/home' });
-    }
-  };
+type MenuData = {
+  breakfast: MenuItem[];
+  lunch: MenuItem[];
+  dinner: MenuItem[];
+  latenight: MenuItem[];
+};
 
+type MenuApiResponse = {
+  success: boolean;
+  data: MenuData;
+  timestamp: string;
+};
+
+type OccupancyData = {
+  percentageFull: number;
+  capacity: number | null;
+  lastUpdated: string;
+  isActive: boolean;
+  status: 'available' | 'unavailable' | 'error';
+  message?: string;
+};
+
+type OccupancyApiResponse = {
+  success: boolean;
+  data: Record<string, OccupancyData>;
+  error?: string;
+  timestamp: string;
+};
+
+const MENU_API_URL = 'http://localhost:3000/api/menu';
+const OCCUPANCY_API_URL = 'http://localhost:3000/api/occupancy';
+
+export default function Index() {
   return (
-    <View style={styles.body}>
-      <View style={styles.container}>
-        
-        <ImageBackground
-          source={require("../assets/images/backgroundW.png")}
-          style={[StyleSheet.absoluteFillObject, styles.background]}
-          resizeMode="cover"
-        />
-
-        {/* Top Section */}
-        <View style={styles.header}>
-          <Image source={require("../assets/images/Welcome.png")} style={styles.imageW} />
-          <Text style={styles.skip}>Skip</Text>
-        </View>
-
-        {/* Welcome Text */}
-        <View style={styles.content}>
-          <Text style={styles.title}>Welcome</Text>
-          <Text style={styles.subtitle}>
-            Your dining adventure @ Columbia{"\n"}starts here.
-          </Text>
-        </View>
-
-        {/* Image/Graphics */}
-        <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: "https://via.placeholder.com/150" }}
-            style={styles.image}
-          />
-        </View>
-
-        <View style={styles.buttonDiv}>
-          {/* Button with Navigation */}
-          <TouchableOpacity 
-            style={styles.button} 
-            onPress={handleExplore}
-          > 
-            <Text style={styles.buttonText}>EXPLORE NOW</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Text>Edit app/index.tsx to edit this screen.</Text>
     </View>
   );
 }
