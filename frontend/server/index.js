@@ -9,6 +9,7 @@ const tableRoutes = require('./routes/tableRoutes');
 const userRoutes = require('./routes/userRoutes');
 const diningHallRoutes = require('./routes/diningHallRoutes');
 const groupRoutes = require('./routes/groupRoutes');
+const diningChatRoutes = require('./routes/diningChatRoutes');
 
 const app = express();
 app.use(cors());
@@ -26,6 +27,7 @@ app.use('/api/tables', tableRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dining-halls', diningHallRoutes);
 app.use('/api/groups', groupRoutes);
+app.use('/api/dining-chats', diningChatRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
