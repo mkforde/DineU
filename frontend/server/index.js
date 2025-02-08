@@ -5,7 +5,7 @@ require('dotenv').config();
 
 const menuRoutes = require('./menuScraper');
 const occupancyRoutes = require('./occupancyRoutes');
-const partyRoutes = require('./routes/partyRoutes');
+const tableRoutes = require('./routes/tableRoutes');
 
 const app = express();
 app.use(cors());
@@ -19,7 +19,7 @@ mongoose.connect(process.env.MONGODB_URI)
 // Routes
 app.use('/api/menu', menuRoutes);
 app.use('/api/occupancy', occupancyRoutes);
-app.use('/api/parties', partyRoutes);
+app.use('/api/tables', tableRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
