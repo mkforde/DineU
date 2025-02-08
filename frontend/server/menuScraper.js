@@ -1,6 +1,9 @@
 const puppeteer = require('puppeteer');
 const express = require('express');
 const router = express.Router();
+const { spawn } = require('child_process');
+const NutritionService = require('./nutritionService');
+const nutritionService = new NutritionService();
 
 // URL Constants
 const MEAL_URLS = {
@@ -203,15 +206,14 @@ async function scrapeMenuItems(page, mealType) {
   );
 }
 
-// Menu Controller Function
-async function getMenu(req, res) {
-  let browser = null;
-  try {
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+// Separate the scraping logic from the response handling
+async function scrapeMenuData() {
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
 
+  try {
     const menuData = {
       breakfast: [],
       lunch: [],
@@ -294,18 +296,18 @@ async function getMenu(req, res) {
       }
     }
 
-    res.json({ 
-      success: true, 
+    return {
+      success: true,
       data: menuData,
       timestamp: new Date().toISOString()
-    });
+    };
   } catch (error) {
     console.error('Scraping error:', error);
-    res.status(500).json({ 
-      success: false, 
+    return {
+      success: false,
       error: error.message || 'Failed to fetch menu data',
       timestamp: new Date().toISOString()
-    });
+    };
   } finally {
     if (browser) {
       await browser.close();
@@ -313,7 +315,199 @@ async function getMenu(req, res) {
   }
 }
 
-// Add route to the router
-router.get('/', getMenu);
+// Menu endpoint handler
+router.get('/', async (req, res) => {
+  try {
+    // Check cache first
+    const { data: cachedMenu } = await req.supabase
+      .from('menu_cache')
+      .select('*')
+      .gt('last_updated', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+    if (cachedMenu && cachedMenu.length > 0) {
+      // Transform cached data back into menu format
+      const menuData = {
+        success: true,
+        data: cachedMenu.reduce((acc, item) => {
+          if (!acc[item.mealType]) acc[item.mealType] = [];
+          acc[item.mealType].push({
+            mealType: item.mealType,
+            diningHall: item.diningHall,
+            hours: item.hours,
+            foodType: item.foodType,
+            foodName: item.foodName,
+            dietaryPreferences: item.dietaryPreferences,
+            contains: item.contains
+          });
+          return acc;
+        }, {})
+      };
+      return res.json(menuData);
+    }
+
+    // If not in cache, scrape fresh data
+    const menuData = await getMenuData();
+    
+    // Cache the new menu data if scraping was successful
+    if (menuData.success) {
+      const menuItems = [];
+      Object.entries(menuData.data).forEach(([mealType, items]) => {
+        items.forEach(item => {
+          menuItems.push({
+            mealType: item.mealType,
+            diningHall: item.diningHall,
+            hours: item.hours,
+            foodType: item.foodType,
+            foodName: item.foodName,
+            dietaryPreferences: item.dietaryPreferences || [],
+            contains: item.contains || [],
+            last_updated: new Date().toISOString()
+          });
+        });
+      });
+
+      // Store in Supabase cache
+      await req.supabase
+        .from('menu_cache')
+        .upsert(menuItems, {
+          onConflict: 'mealType,diningHall,foodName',
+          ignoreDuplicates: false
+        });
+    }
+
+    res.json(menuData);
+  } catch (error) {
+    console.error('Menu fetch error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch menu data'
+    });
+  }
+});
+
+// Recommendations endpoint handler
+router.get('/recommend', async (req, res) => {
+  try {
+    // Check cache first
+    const { data: cachedMenu } = await req.supabase
+      .from('menu_cache')
+      .select('*')
+      .gt('last_updated', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+    let menuData;
+    if (cachedMenu && cachedMenu.length > 0) {
+      // Transform cached data to match MenuItem interface
+      menuData = {
+        success: true,
+        data: cachedMenu.reduce((acc, item) => {
+          if (!acc[item.mealType]) acc[item.mealType] = [];
+          // Ensure data matches MenuItem interface
+          acc[item.mealType].push({
+            mealType: item.mealType,
+            diningHall: item.diningHall,
+            hours: item.hours,
+            foodType: item.foodType,
+            foodName: item.foodName,
+            dietaryPreferences: item.dietaryPreferences,
+            contains: item.contains
+          });
+          return acc;
+        }, {})
+      };
+    } else {
+      menuData = await getMenuData();
+      
+      // Cache the new menu data
+      if (menuData.success) {
+        const menuItems = [];
+        Object.entries(menuData.data).forEach(([mealType, items]) => {
+          items.forEach(item => {
+            // Store data matching MenuItem interface
+            menuItems.push({
+              mealType: item.mealType,
+              diningHall: item.diningHall,
+              hours: item.hours,
+              foodType: item.foodType,
+              foodName: item.foodName,
+              dietaryPreferences: item.dietaryPreferences || [],
+              contains: item.contains || [],
+              last_updated: new Date().toISOString()
+            });
+          });
+        });
+
+        await req.supabase
+          .from('menu_cache')
+          .upsert(menuItems, { 
+            onConflict: 'mealType,diningHall,foodName',
+            ignoreDuplicates: false 
+          });
+      }
+    }
+
+    if (!menuData.success) {
+      throw new Error(menuData.error || 'Failed to fetch menu data');
+    }
+
+    // Process all meals from all dining halls
+    const processedMeals = [];
+    for (const [mealType, items] of Object.entries(menuData.data)) {
+      for (const item of items) {
+        if (item.foodName !== "Closed" && item.foodName !== "No items available") {
+          const analyzedMeal = await nutritionService.analyzeMeal({
+            dining_hall: item.diningHall,
+            meal_name: item.foodName,
+            meal_type: mealType
+          });
+          processedMeals.push(analyzedMeal);
+        }
+      }
+    }
+
+    // Group by dining hall and calculate scores
+    const diningHallScores = processedMeals.reduce((acc, meal) => {
+      if (!acc[meal.dining_hall]) {
+        acc[meal.dining_hall] = {
+          dining_hall: meal.dining_hall,
+          meals: [],
+          avgHealthScore: 0,
+          avgCalories: 0,
+          menuSize: 0
+        };
+      }
+      
+      acc[meal.dining_hall].meals.push(meal);
+      acc[meal.dining_hall].avgHealthScore += meal.healthScore;
+      acc[meal.dining_hall].avgCalories += meal.nutrition.calories;
+      acc[meal.dining_hall].menuSize++;
+      
+      return acc;
+    }, {});
+
+    // Calculate averages and sort dining halls
+    const recommendations = Object.values(diningHallScores)
+      .map(hall => ({
+        ...hall,
+        avgHealthScore: hall.avgHealthScore / hall.menuSize,
+        avgCalories: hall.avgCalories / hall.menuSize
+      }))
+      .sort((a, b) => b.avgHealthScore - a.avgHealthScore);
+
+    res.json({
+      success: true,
+      data: {
+        recommendations,
+        processedMeals
+      }
+    });
+
+  } catch (error) {
+    console.error('Recommendation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get recommendations'
+    });
+  }
+});
 
 module.exports = router; 
