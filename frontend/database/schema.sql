@@ -5,6 +5,11 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE users (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
+<<<<<<< HEAD
+=======
+  email TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+>>>>>>> 4bff49dacfe4532b6b793b8ddf58ebb42be8bfdd
 );
 
 -- Tables (Dining Tables/Parties) Table
@@ -93,6 +98,14 @@ CREATE POLICY "Members can join unlocked tables"
   );
 
 -- Policies for Messages
+<<<<<<< HEAD
+=======
+CREATE POLICY "Anyone can read messages"
+  ON table_messages FOR SELECT
+  TO authenticated
+  USING (true);
+
+>>>>>>> 4bff49dacfe4532b6b793b8ddf58ebb42be8bfdd
 CREATE POLICY "Members can send messages"
   ON table_messages FOR INSERT
   TO authenticated
@@ -105,6 +118,7 @@ CREATE POLICY "Members can send messages"
     )
   );
 
+<<<<<<< HEAD
 -- Add new policies for anonymous access to table_messages
 DROP POLICY IF EXISTS "Anyone can read messages" ON table_messages;
 DROP POLICY IF EXISTS "Anyone can insert messages" ON table_messages;
@@ -120,12 +134,19 @@ CREATE POLICY "Anyone can insert messages"
   WITH CHECK (true);
 
 -- Enable Realtime for messages if not already enabled
+=======
+-- Enable Realtime
+>>>>>>> 4bff49dacfe4532b6b793b8ddf58ebb42be8bfdd
 ALTER PUBLICATION supabase_realtime ADD TABLE table_messages;
 
 -- Create indexes for better performance
 CREATE INDEX idx_table_messages_table_id ON table_messages(table_id);
 CREATE INDEX idx_table_members_table_id ON table_members(table_id);
+<<<<<<< HEAD
 CREATE INDEX idx_dining_tables_owner ON dining_tables(owner_id);
 
 -- Enable RLS
 ALTER TABLE table_messages ENABLE ROW LEVEL SECURITY; 
+=======
+CREATE INDEX idx_dining_tables_owner ON dining_tables(owner_id); 
+>>>>>>> 4bff49dacfe4532b6b793b8ddf58ebb42be8bfdd
