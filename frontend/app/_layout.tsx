@@ -9,6 +9,9 @@ export default function RootLayout() {
       <Stack.Screen name="home" options={{ headerShown: true, title: "home" }} />
       <Stack.Screen name="profile" options={{ headerShown: true, title: "profile" }} />
       <Stack.Screen name="johnjaymeny" options={{ headerShown: true, title: "johnjaymenu" }} />
+      <Stack.Screen name="jointable" options={{ headerShown: true, title: "jointable" }} />
+      <Stack.Screen name="createtable" options={{ headerShown: true, title: "createtable" }} />
+
 
     </Stack>
   );

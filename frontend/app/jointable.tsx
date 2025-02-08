@@ -1,8 +1,78 @@
 import React from "react";
 import { useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions } from "react-native";
+import { View, Text, Image, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, Animated  } from "react-native";
 import { useNavigation } from '@react-navigation/native';
 
+export function Selection() {
+  const [activeTab, setActiveTab] = useState(0);
+  const [pressedTab, setPressedTab] = useState(null);
+
+  // Animation value for press feedback
+  const [pressAnimation] = useState(new Animated.Value(1));
+
+  const handlePressIn = (index) => {
+    setPressedTab(index);
+    Animated.spring(pressAnimation, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    setPressedTab(null);
+    Animated.spring(pressAnimation, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePress = (index) => {
+    setActiveTab(index);
+  };
+
+  const getTabStyle = (index) => {
+    const isPressed = pressedTab === index;
+    const isActive = activeTab === index;
+    
+    const baseStyle = [
+      styles.tabBase,
+      index === 0 && styles.tab1,
+      index === 1 && styles.tab2,
+      isActive && styles.activeTab,
+      isPressed && styles.pressedTab
+    ];
+
+    return baseStyle;
+  };
+
+  return (
+    <View style={styles.container}>
+      {['Private','Public'].map((label, index) => (
+        <Animated.View 
+          key={index}
+          style={[
+            { transform: [{ scale: pressAnimation }] }
+          ]}
+        >
+          <TouchableOpacity
+            style={getTabStyle(index)}
+            onPressIn={() => handlePressIn(index)}
+            onPressOut={handlePressOut}
+            onPress={() => handlePress(index)}
+            activeOpacity={0.9}
+          >
+            <Text style={[
+              styles.tabText,
+              activeTab === index && styles.activeTabText
+            ]}>
+              {label}
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      ))}
+    </View>
+  );
+}
 function CustomBottomNav() {
   const [activeTab, setActiveTab] = useState("table");
   const navigation = useNavigation();
@@ -73,7 +143,6 @@ const TableChatPreview = ({ title, lastMessage, time, unreadCount, isPrivate }) 
 
 export default function WelcomeScreen() {
   const { height } = useWindowDimensions();
-  const navigation = useNavigation(); // Access navigation object
 
   // Sample data for table chats
   const sampleTableChats = [
@@ -122,17 +191,10 @@ export default function WelcomeScreen() {
       <View style={styles.container}>
         <ScrollView style={{ height: height - 82 }}>
           <View style={styles.top}>
-            <Text style={styles.title}>Tables</Text>
+            <Text style={styles.title}>Join a table</Text>
           </View>
+          <Selection></Selection>
 
-          <View style={styles.header}>
-            <TouchableOpacity  onPress={() => navigation.navigate("createtable")}>
-              <Image source={require("../assets/images/create table.png")}/>
-            </TouchableOpacity>
-            <TouchableOpacity  onPress={() => navigation.navigate("jointable")}>
-              <Image source={require("../assets/images/join table.png")}/>
-            </TouchableOpacity>
-          </View>
 
           <View style={styles.tableChatsSection}>
             <Text style={styles.notif}>Table Chats</Text>
@@ -295,5 +357,36 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
+  },
+  tabBase: {
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 90,
+  },
+  tab1: {
+    width: 115,
+    marginLeft: 3,
+  },
+  tab2: {
+    width: 170,
+  },
+  tab3: {
+    width: 115,
+    marginRight: 3,
+  },
+  activeTab: {
+    backgroundColor: '#DAFC08',
+  },
+  pressedTab: {
+    backgroundColor: '#DAFC08',
+  },
+  tabText: {
+    fontSize: 14,
+    color: '#8C8C8C',
+  },
+  activeTabText: {
+    color: 'black',
+    fontWeight: '500',
   }
 });

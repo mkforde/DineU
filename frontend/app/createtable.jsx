@@ -73,7 +73,6 @@ const TableChatPreview = ({ title, lastMessage, time, unreadCount, isPrivate }) 
 
 export default function WelcomeScreen() {
   const { height } = useWindowDimensions();
-  const navigation = useNavigation(); // Access navigation object
 
   // Sample data for table chats
   const sampleTableChats = [
@@ -126,10 +125,10 @@ export default function WelcomeScreen() {
           </View>
 
           <View style={styles.header}>
-            <TouchableOpacity  onPress={() => navigation.navigate("createtable")}>
+            <TouchableOpacity>
               <Image source={require("../assets/images/create table.png")}/>
             </TouchableOpacity>
-            <TouchableOpacity  onPress={() => navigation.navigate("jointable")}>
+            <TouchableOpacity>
               <Image source={require("../assets/images/join table.png")}/>
             </TouchableOpacity>
           </View>
