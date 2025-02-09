@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "test": "jest --watchAll",
     "lint": "expo lint",
-    "server": "cd server && npm run server"
+    "server": "cd server && npm run server",
+    "generate-types": "supabase gen types typescript --project-id eilgfvfxoaptkbqirdmj > lib/database.types.ts"
   },
   "jest": {
     "preset": "jest-expo"
@@ -22,6 +23,7 @@
     "@react-native-firebase/auth": "^21.7.3",
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/supabase-js": "^2.48.1",
     "expo": "^52.0.31",
     "expo-blur": "~14.0.3",
