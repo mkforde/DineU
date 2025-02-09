@@ -1,7 +1,6 @@
 import React, { useEffect } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity } from "react-native";
 import { useRouter } from 'expo-router';
-import { auth } from '../config/firebase';
 import { supabase } from '../lib/supabase';
 
 export default function WelcomeScreen() {
