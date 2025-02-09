@@ -210,22 +210,25 @@ export default function WelcomeScreen() {
           <View style = {styles.dining}>
             <View style={styles.diningRow}>
               <DiningButton title="John Jay" image={require("../assets/images/johnjay.jpg")} use={55} capacity = {80}  />
-              <DiningButton title="JJ's" image={require("../assets/images/jjs.jpg")} use={70} capacity = {70}  />
+              <DiningButton title="JJs" image={require("../assets/images/jjs.jpg")} use={70} capacity = {70}  />
             </View>
             <View style={styles.diningRow}>
               <DiningButton title="Faculty House" image={require("../assets/images/fac.jpg")} use={30} capacity = {60}  />
               <DiningButton title="Ferris" image={require("../assets/images/ferris.jpg")} use={10} capacity = {93}  />
             </View>
+            <View style={styles.diningRow}>
+              <DiningButton title="Dianas" image={require("../assets/images/dianas.jpg")} use={30} capacity = {60}  />
+              <DiningButton title="Hewitt" image={require("../assets/images/hewitt.jpg")} use={10} capacity = {93}  />
+            </View>
+            <View style={styles.diningRow}>
+              <DiningButton title="Johnnys" image={require("../assets/images/johnnys.jpg")} use={30} capacity = {60}  />
+              <DiningButton title="Fac Shack" image={require("../assets/images/facshack.jpg")} use={10} capacity = {93}  />
+            </View>
+            <View style={styles.diningRow}>
+              <DiningButton title="Chef Mikes" image={require("../assets/images/chefmikes.jpg")} use={30} capacity = {60}  />
+              <DiningButton title="Chef Dons" image={require("../assets/images/chefdons.jpg")} use={10} capacity = {93}  />
+            </View>
           </View>
-          <View style = {styles.buttonDiv}>
-            <TouchableOpacity 
-              style={styles.allLoc} 
-              onPress={handleExplorePress}
-            >
-              <Text style={styles.buttonLoc}>See all Locations</Text>
-            </TouchableOpacity>
-          </View>
-
         </View>
 
       </ScrollView>
@@ -334,7 +337,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF47F",
     borderRadius: 15,
     width: 358,
-    height: 307,
+    height: 500,
     justifyContent: "space-evenly",
 
   },

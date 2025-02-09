@@ -2,7 +2,6 @@ import React from "react";
 import { useState } from 'react';
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
 import { useNavigation } from '@react-navigation/native';
-import RNPickerSelect from "react-native-picker-select";
 
 
 
@@ -78,10 +77,10 @@ export default function menu() {
   ]);
 
   const name = "Alice";
-  const clickedDining = "John Jay";
+  const clickedDining = "JJ's Place";
   const isOpen = "OPEN";
   const { height } = useWindowDimensions(); // Auto-updating height
-  const timing = "DAILY 12:00PM - 10:00AM, John Jay Hall Lower Level";
+  const timing = "{Insert time}";
 
   const DiningButton = ({ title, image, use, capacity }) => {
      const fillPercentage = use / capacity;
@@ -119,7 +118,7 @@ export default function menu() {
     <View style={styles.container}>
       <ScrollView> 
         <View style={styles.header}>
-            <ImageBackground source= {require("../assets/images/johnjay.jpg")} resizeMode="cover" style={styles.imageBackground}>
+            <ImageBackground source= {require("../assets/images/jjs.jpg")} resizeMode="cover" style={styles.imageBackground}>
               <View style={styles.overlay} />
               <TouchableOpacity style={styles.imgback} onPress={() => navigation.goBack()}>
                 <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
@@ -148,8 +147,8 @@ export default function menu() {
               </View>
             </View>
             <View style = {styles.imageM}>
-              <Image source={require("../assets/images/NutriA.png")} />
-              <DiningButton title="JJ's" image={require("../assets/images/jjs.jpg")} use={70} capacity = {70}  />
+              <Image source={require("../assets/images/NutriB.png")} />
+              <DiningButton title="Fac's" image={require("../assets/images/fac.jpg")} use={30} capacity = {60}  />
             </View>
           </View>
 
