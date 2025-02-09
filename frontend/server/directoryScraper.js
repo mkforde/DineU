@@ -44,4 +44,39 @@ router.get('/:uni', async (req, res) => {
   }
 });
 
+// Add logging to debug
+router.get('/user/:uni', async (req, res) => {
+  try {
+    const { uni } = req.params;
+    console.log(`Looking up directory info for UNI: ${uni}`);
+    
+    // Use the actual scraping function
+    const result = await scrapeDirectory(uni);
+    
+    if (result.success) {
+      const userInfo = {
+        firstName: result.name
+      };
+      
+      console.log(`Found directory info for ${uni}:`, userInfo);
+      res.json({
+        success: true,
+        data: userInfo
+      });
+    } else {
+      console.log(`No directory data found for ${uni}`);
+      res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+  } catch (error) {
+    console.error('Directory lookup error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 module.exports = router; 

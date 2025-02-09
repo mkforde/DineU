@@ -1,61 +1,31 @@
-import React from "react";
-import { useEffect, useState } from "react";
-import { View, Image, StyleSheet, ImageBackground, TouchableOpacity, Text } from "react-native";
+import React, { useEffect } from "react";
+import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity } from "react-native";
 import { useRouter } from 'expo-router';
 import { auth } from '../config/firebase';
+import { supabase } from '../lib/supabase';
 
-type MenuItem = {
-  mealType: string;
-  diningHall: string;
-  hours: string;
-  foodType: string;
-  foodName: string;
-};
+export default function WelcomeScreen() {
+  const router = useRouter();
 
-type MenuData = {
-  breakfast: MenuItem[];
-  lunch: MenuItem[];
-  dinner: MenuItem[];
-  latenight: MenuItem[];
-};
+  useEffect(() => {
+    if (!router) return; // Early return if router isn't ready
 
-type MenuApiResponse = {
-  success: boolean;
-  data: MenuData;
-  timestamp: string;
-};
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      router.replace(session ? '/home' : '/login');
+    };
+    checkAuth();
+  }, [router]);
 
-type OccupancyData = {
-  percentageFull: number;
-  capacity: number | null;
-  lastUpdated: string;
-  isActive: boolean;
-  status: 'available' | 'unavailable' | 'error';
-  message?: string;
-};
+  const handleExplore = () => {
+    if (!auth.currentUser) {
+      router.push({ pathname: '/login' });
+    } else {
+      router.push({ pathname: '/home' });
+    }
+  };
 
-type OccupancyApiResponse = {
-  success: boolean;
-  data: Record<string, OccupancyData>;
-  error?: string;
-  timestamp: string;
-};
-
-const MENU_API_URL = 'http://localhost:3000/api/menu';
-const OCCUPANCY_API_URL = 'http://localhost:3000/api/occupancy';
-
-export default function Index() {
-  return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Text>Edit app/index.tsx to edit this screen.</Text>
-    </View>
-  );
+  return null; // Return null while checking auth
 }
 
 const styles = StyleSheet.create({

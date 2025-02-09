@@ -1,8 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useState } from 'react';
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
 import { useRouter } from 'expo-router';
-import { auth } from '../config/firebase';
 import { supabase } from '../lib/supabase';
 import { useNavigation } from '@react-navigation/native';
 
@@ -51,17 +50,31 @@ function CustomBottomNav() {
 }
 
 export default function WelcomeScreen() {
-  const name = "Alice";
+  const router = useRouter();  // Move router to top
+  const [userName, setUserName] = useState('');
+  const [isLoading, setIsLoading] = useState(true);  // Add loading state
   const recommendedDining = "John Jay";
-  const { height } = useWindowDimensions(); // Auto-updating height
-  const router = useRouter();
+  const { height } = useWindowDimensions();
+  const dataFetched = useRef(false);
 
-  const handleExplorePress = () => {
-    if (!auth.currentUser) {
+  useEffect(() => {
+    if (!router) return;  // Add null check
+    
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace('/login');
+      }
+    };
+    checkAuth();
+  }, [router]);
+
+  const handleExplorePress = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
       router.push('/login');
     } else {
-      // Handle explore action for logged in users
-      router.push('/explore'); // or whatever your explore page route is
+      router.push('/explore');
     }
   };
 
@@ -101,79 +114,78 @@ export default function WelcomeScreen() {
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Check cache first
-        const { data: cachedMenu } = await supabase
-          .from('menu_cache')
-          .select('*')
-          .gt('last_updated', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-        if (cachedMenu && cachedMenu.length > 0) {
-          console.log('Using cached menu data:', {
-            totalItems: cachedMenu.length,
-            mealTypes: [...new Set(cachedMenu.map(item => item.mealType))],
-            diningHalls: [...new Set(cachedMenu.map(item => item.diningHall))]
-          });
-        } else {
-          // Fetch fresh menu data
-          console.log('Fetching fresh menu data...');
-          const menuResponse = await fetch('http://localhost:3000/api/dining');
-          const menuResult = await menuResponse.json();
-          console.log('Menu API Response:', {
-            success: menuResult.success,
-            mealPeriods: Object.keys(menuResult.data || {}),
-            timestamp: menuResult.timestamp
-          });
-        }
-
-        // Fetch recommendations
-        console.log('Fetching recommendations...');
-        const recommendResponse = await fetch('http://localhost:3000/api/dining/recommend');
-        const recommendResult = await recommendResponse.json();
-        console.log('Recommendation API Response:', {
-          success: recommendResult.success,
-          recommendations: recommendResult.data?.recommendations?.map(rec => ({
-            diningHall: rec.dining_hall,
-            score: rec.avgHealthScore,
-            menuSize: rec.menuSize
-          }))
-        });
-
-      } catch (err) {
-        console.error('Error fetching data:', err);
-      }
-    };
-
-    fetchData();
-  }, []); // Empty dependency array means this runs once on component mount
-
-  useEffect(() => {
     async function createProfileIfNeeded() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        const email = session.user.email;
-        const uni = email?.split('@')[0];
-
-        // Create profile record
-        const { error: createError } = await supabase
+        // First check if profile exists with firstName
+        const { data: existingProfile } = await supabase
           .from('profiles')
-          .insert({
-            id: session.user.id,
-            uni: uni,
-            email: email
-          })
-          .select()
+          .select('firstName')
+          .eq('id', session.user.id)
           .single();
 
-        if (createError) {
-          console.error('Error creating profile:', createError);
-          console.log('Session:', session);
+        // Only fetch directory data if profile doesn't exist or firstName is null
+        if (!existingProfile || !existingProfile.firstName) {
+          const email = session.user.email;
+          const uni = email?.split('@')[0];
+
+          try {
+            const directoryResponse = await fetch(`http://localhost:3000/api/directory/user/${uni}`);
+            const directoryData = await directoryResponse.json();
+            console.log('Directory lookup result:', directoryData);
+
+            // Create/update profile with firstName
+            const { error: createError } = await supabase
+              .from('profiles')
+              .upsert({
+                id: session.user.id,
+                uni: uni,
+                email: email,
+                firstName: directoryData.success ? directoryData.data.firstName : null
+              })
+              .select()
+              .single();
+
+            if (createError) {
+              console.error('Error creating profile:', createError);
+            }
+          } catch (error) {
+            console.error('Error fetching directory data:', error);
+          }
+        } else {
+          console.log('Profile already exists with firstName:', existingProfile.firstName);
         }
       }
     }
 
     createProfileIfNeeded();
+  }, []);
+
+  // Update the fetch userName effect
+  useEffect(() => {
+    async function fetchUserName() {
+      try {
+        setIsLoading(true);  // Start loading
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('firstName')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (profile?.firstName) {
+            setUserName(profile.firstName);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching username:', error);
+      } finally {
+        setIsLoading(false);  // End loading
+      }
+    }
+
+    fetchUserName();
   }, []);
 
   return (
@@ -186,7 +198,9 @@ export default function WelcomeScreen() {
 
         <View style={styles.header}>
           <View style={styles.top} >
-            <Text style={styles.title}>Hey {name},</Text>
+            <Text style={styles.title}>
+              Hey {isLoading ? '...' : userName || 'there'},
+            </Text>
             <Text style={styles.desc}>Let's hit up <Text style={styles.bold}>{recommendedDining}</Text>, your usual spot.</Text>
           </View>
           <View style = {styles.image1}>

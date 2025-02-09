@@ -3,7 +3,6 @@ const express = require('express');
 const router = express.Router();
 const { spawn } = require('child_process');
 const NutritionService = require('./nutritionService');
-const nutritionService = new NutritionService();
 
 // URL Constants
 const MEAL_URLS = {
@@ -30,6 +29,17 @@ const BARNARD_DINING_HALLS = {
   "Diana": 'https://dineoncampus.com/barnard/whats-on-the-menu',
   "Hewitt": 'https://dineoncampus.com/barnard/whats-on-the-menu'
 };
+
+// At the top of the file, add a cache for the scraped data
+let scrapedMenuData = null;
+let lastScrapeTime = null;
+const SCRAPE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+// Create a nutritionService instance per request with Supabase
+router.use((req, res, next) => {
+    req.nutritionService = new NutritionService(req.supabase);
+    next();
+});
 
 // Helper function to check if a dining hall is closed
 function isDiningHallClosed(menuItems, diningHall) {
@@ -315,16 +325,22 @@ async function scrapeMenuData() {
   }
 }
 
-// Menu endpoint handler
-router.get('/', async (req, res) => {
-  try {
-    // Check cache first
-    const { data: cachedMenu } = await req.supabase
+// Modify getMenuData to check Supabase cache first
+async function getMenuData(supabase) {
+  const now = Date.now();
+  
+  // First check Supabase cache
+  if (supabase) {
+    console.log('Checking Supabase menu cache...');
+    const { data: cachedMenu, error } = await supabase
       .from('menu_cache')
       .select('*')
       .gt('last_updated', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
-    if (cachedMenu && cachedMenu.length > 0) {
+    if (error) {
+      console.error('Menu cache fetch error:', error);
+    } else if (cachedMenu && cachedMenu.length > 0) {
+      console.log(`Found ${cachedMenu.length} items in Supabase cache`);
       // Transform cached data back into menu format
       const menuData = {
         success: true,
@@ -337,47 +353,153 @@ router.get('/', async (req, res) => {
             foodType: item.foodType,
             foodName: item.foodName,
             dietaryPreferences: item.dietaryPreferences,
-            contains: item.contains
+            contains: item.contains,
+            nutritionalInfo: item.nutritionalInfo
           });
           return acc;
-        }, {})
+        }, {}),
+        timestamp: new Date().toISOString()
       };
-      return res.json(menuData);
+      return menuData;
     }
+  }
 
-    // If not in cache, scrape fresh data
-    const menuData = await getMenuData();
+  // Then check memory cache
+  if (scrapedMenuData && lastScrapeTime && (now - lastScrapeTime < SCRAPE_INTERVAL)) {
+    console.log('Using memory cached menu data');
+    return scrapedMenuData;
+  }
+
+  // Only scrape if we need to
+  console.log('No valid cache found, scraping fresh menu data');
+  const freshData = await scrapeMenuData();
+  if (freshData.success) {
+    scrapedMenuData = freshData;
+    lastScrapeTime = now;
+    console.log('Menu data cached in memory at:', new Date(lastScrapeTime).toISOString());
+  }
+  return freshData;
+}
+
+// Update the menu endpoint handler to use getMenuData
+router.get('/', async (req, res) => {
+  try {
+    const menuData = await getMenuData(req.supabase);
     
-    // Cache the new menu data if scraping was successful
-    if (menuData.success) {
-      const menuItems = [];
-      Object.entries(menuData.data).forEach(([mealType, items]) => {
-        items.forEach(item => {
-          menuItems.push({
-            mealType: item.mealType,
-            diningHall: item.diningHall,
-            hours: item.hours,
-            foodType: item.foodType,
-            foodName: item.foodName,
-            dietaryPreferences: item.dietaryPreferences || [],
-            contains: item.contains || [],
-            last_updated: new Date().toISOString()
-          });
-        });
-      });
-
-      // Store in Supabase cache
-      await req.supabase
-        .from('menu_cache')
-        .upsert(menuItems, {
-          onConflict: 'mealType,diningHall,foodName',
-          ignoreDuplicates: false
-        });
+    if (!menuData.success) {
+      throw new Error(menuData.error || 'Failed to fetch menu data');
     }
 
-    res.json(menuData);
+    // Process menu items with nutrition data
+    const processedMenuData = { ...menuData };
+    const allProcessedItems = []; // Keep track of all items for ranking
+    
+    for (const [mealType, items] of Object.entries(menuData.data)) {
+      const processedItems = [];
+      for (const item of items) {
+        if (item.foodName !== "Closed" && item.foodName !== "No items available") {
+          try {
+            // Get nutrition data for each item
+            const nutrition = await req.nutritionService.getNutritionData(
+              item.foodName,
+              item.diningHall
+            );
+            
+            const processedItem = {
+              ...item,
+              nutrition,
+              healthScore: req.nutritionService.calculateHealthScore(nutrition)
+            };
+            
+            processedItems.push(processedItem);
+            allProcessedItems.push(processedItem);
+          } catch (error) {
+            console.error(`Error processing nutrition for ${item.foodName}:`, error);
+            processedItems.push(item); // Keep the item even if nutrition processing fails
+          }
+        } else {
+          processedItems.push(item);
+        }
+      }
+      processedMenuData.data[mealType] = processedItems;
+    }
+
+    // Calculate top recommendations
+    const recommendations = {
+      healthiest: [],
+      byNutrient: {
+        highProtein: [],
+        lowCalorie: [],
+        highFiber: []
+      },
+      byDiningHall: {}
+    };
+
+    // Sort all items by health score for overall healthiest options
+    recommendations.healthiest = allProcessedItems
+      .filter(item => item.healthScore) // Only include items with health scores
+      .sort((a, b) => b.healthScore - a.healthScore)
+      .slice(0, 5)
+      .map(item => ({
+        foodName: item.foodName,
+        diningHall: item.diningHall,
+        mealType: item.mealType,
+        healthScore: item.healthScore,
+        nutrition: item.nutrition
+      }));
+
+    // Sort by specific nutrients
+    recommendations.byNutrient.highProtein = allProcessedItems
+      .filter(item => item.nutrition?.protein)
+      .sort((a, b) => b.nutrition.protein - a.nutrition.protein)
+      .slice(0, 3);
+
+    recommendations.byNutrient.lowCalorie = allProcessedItems
+      .filter(item => item.nutrition?.calories)
+      .sort((a, b) => a.nutrition.calories - b.nutrition.calories)
+      .slice(0, 3);
+
+    recommendations.byNutrient.highFiber = allProcessedItems
+      .filter(item => item.nutrition?.fiber)
+      .sort((a, b) => b.nutrition.fiber - a.nutrition.fiber)
+      .slice(0, 3);
+
+    // Group by dining hall and calculate average scores
+    const diningHallGroups = allProcessedItems.reduce((acc, item) => {
+      if (!acc[item.diningHall]) {
+        acc[item.diningHall] = {
+          items: [],
+          totalHealthScore: 0,
+          count: 0
+        };
+      }
+      if (item.healthScore) {
+        acc[item.diningHall].items.push(item);
+        acc[item.diningHall].totalHealthScore += item.healthScore;
+        acc[item.diningHall].count++;
+      }
+      return acc;
+    }, {});
+
+    // Calculate average scores for each dining hall
+    recommendations.byDiningHall = Object.entries(diningHallGroups)
+      .map(([diningHall, data]) => ({
+        diningHall,
+        avgHealthScore: data.count > 0 ? data.totalHealthScore / data.count : 0,
+        menuSize: data.count,
+        topItems: data.items
+          .sort((a, b) => b.healthScore - a.healthScore)
+          .slice(0, 3)
+      }))
+      .sort((a, b) => b.avgHealthScore - a.avgHealthScore);
+
+    res.json({
+      ...processedMenuData,
+      recommendations
+    });
+
   } catch (error) {
-    console.error('Menu fetch error:', error);
+    console.error('Menu endpoint error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to fetch menu data'
@@ -385,81 +507,52 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Recommendations endpoint handler
+// Modify the recommend endpoint to use the same data
 router.get('/recommend', async (req, res) => {
   try {
-    // Check cache first
-    const { data: cachedMenu } = await req.supabase
-      .from('menu_cache')
-      .select('*')
-      .gt('last_updated', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-    let menuData;
-    if (cachedMenu && cachedMenu.length > 0) {
-      // Transform cached data to match MenuItem interface
-      menuData = {
-        success: true,
-        data: cachedMenu.reduce((acc, item) => {
-          if (!acc[item.mealType]) acc[item.mealType] = [];
-          // Ensure data matches MenuItem interface
-          acc[item.mealType].push({
-            mealType: item.mealType,
-            diningHall: item.diningHall,
-            hours: item.hours,
-            foodType: item.foodType,
-            foodName: item.foodName,
-            dietaryPreferences: item.dietaryPreferences,
-            contains: item.contains
-          });
-          return acc;
-        }, {})
-      };
-    } else {
-      menuData = await getMenuData();
-      
-      // Cache the new menu data
-      if (menuData.success) {
-        const menuItems = [];
-        Object.entries(menuData.data).forEach(([mealType, items]) => {
-          items.forEach(item => {
-            // Store data matching MenuItem interface
-            menuItems.push({
-              mealType: item.mealType,
-              diningHall: item.diningHall,
-              hours: item.hours,
-              foodType: item.foodType,
-              foodName: item.foodName,
-              dietaryPreferences: item.dietaryPreferences || [],
-              contains: item.contains || [],
-              last_updated: new Date().toISOString()
-            });
-          });
-        });
-
-        await req.supabase
-          .from('menu_cache')
-          .upsert(menuItems, { 
-            onConflict: 'mealType,diningHall,foodName',
-            ignoreDuplicates: false 
-          });
-      }
-    }
-
+    const menuData = await getMenuData(req.supabase);
     if (!menuData.success) {
       throw new Error(menuData.error || 'Failed to fetch menu data');
     }
 
-    // Process all meals from all dining halls
+    // Group meals by dining hall
+    const diningHallMeals = {};
+    Object.values(menuData.data).forEach(items => {
+      items.forEach(item => {
+        if (item.foodName !== "Closed" && item.foodName !== "No items available") {
+          if (!diningHallMeals[item.diningHall]) {
+            diningHallMeals[item.diningHall] = new Set();
+          }
+          diningHallMeals[item.diningHall].add(item.foodName);
+        }
+      });
+    });
+
+    // Get nutrition data for each dining hall
+    const nutritionData = {};
+    for (const [diningHall, meals] of Object.entries(diningHallMeals)) {
+      nutritionData[diningHall] = await req.nutritionService.getNutritionDataBatch(
+        [...meals],
+        diningHall
+      );
+    }
+
+    // Process meals with the pre-fetched nutrition data
     const processedMeals = [];
     for (const [mealType, items] of Object.entries(menuData.data)) {
       for (const item of items) {
         if (item.foodName !== "Closed" && item.foodName !== "No items available") {
-          const analyzedMeal = await nutritionService.analyzeMeal({
+          const nutrition = nutritionData[item.diningHall]?.[item.foodName];
+          const healthScore = req.nutritionService.calculateHealthScore(nutrition);
+          
+          processedMeals.push({
             dining_hall: item.diningHall,
             meal_name: item.foodName,
-            meal_type: mealType
+            meal_type: mealType,
+            nutrition,
+            healthScore,
+            analyzed: new Date().toISOString()
           });
-          processedMeals.push(analyzedMeal);
         }
       }
     }
