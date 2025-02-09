@@ -36,11 +36,6 @@
     "expo-symbols": "~0.2.2",
     "expo-system-ui": "~4.0.7",
     "expo-web-browser": "~14.0.2",
-<<<<<<< HEAD
-=======
-    "firebase": "^11.3.0",
-    "node-cron": "^3.0.3",
->>>>>>> 8884003a46926f0d41089d163363ae4d0ed6ae2d
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "^0.76.7",
