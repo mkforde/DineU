@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   View, Text, Image, StyleSheet, TouchableOpacity, 
   ScrollView, useWindowDimensions, Animated, TextInput 
 } from "react-native";
 import { useNavigation } from '@react-navigation/native';
+import { supabase } from "../lib/supabase";
 
 // Modified Selection component to be controlled by parent state
 export function Selection({ activeTab, onTabChange }) {
@@ -111,26 +112,131 @@ function CustomBottomNav() {
   );
 }
 
-// New component for private table search
+// Update PrivateTableSearch component
 const PrivateTableSearch = () => {
   const [pin, setPin] = useState('');
-  const [tableId, setTableId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');  // Add error state
+  const [pinAttempts, setPinAttempts] = useState(0);  // Track attempts for UX
+
+  const handleJoinPrivateTable = async () => {
+    setError('');  // Clear previous errors
+    
+    if (!pin || pin.length !== 4) {
+      setError('Please enter a valid 4-digit PIN');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        setError('Please sign in to join a table');
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('uni')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileError) {
+        setError('Could not find your profile');
+        return;
+      }
+
+      if (!profile?.uni) {
+        setError('Could not find your UNI. Please update your profile.');
+        return;
+      }
+
+      // First find the table with this PIN
+      const { data: table, error: tableError } = await supabase
+        .from('dining_tables')
+        .select('*')
+        .eq('pin', pin)
+        .eq('privacy', 'private')
+        .single();
+
+      if (tableError || !table) {
+        setPinAttempts(prev => prev + 1);
+        setError(pinAttempts >= 2 ? 
+          'Multiple invalid attempts. Please check the PIN carefully.' : 
+          'Invalid PIN or table not found'
+        );
+        return;
+      }
+
+      // Check if table is full
+      if (table.current_members >= parseInt(table.size)) {
+        setError('This table is full');
+        return;
+      }
+
+      // Use the stored procedure to join the table
+      const { error: joinError } = await supabase.rpc('join_table', {
+        p_table_id: table.id,
+        p_uni: profile.uni
+      });
+
+      if (joinError) throw joinError;
+
+      // Clear the PIN input and errors on success
+      setPin('');
+      setError('');
+      setPinAttempts(0);
+      alert('Successfully joined the table!');
+
+    } catch (error) {
+      console.error('Error joining private table:', error);
+      setError('Failed to join table. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.privateSearchContainer}>
       <Text style={styles.sectionTitle}>Enter Private Table Details</Text>
-     
+      
       <TextInput 
-        style={styles.input}
-        placeholder="PIN Code"
+        style={[
+          styles.input,
+          error && styles.inputError  // Add red border when there's an error
+        ]}
+        placeholder="Enter 4-digit PIN"
         value={pin}
-        onChangeText={setPin}
+        onChangeText={(text) => {
+          setPin(text);
+          setError('');  // Clear error when user types
+        }}
         keyboardType="numeric"
-        secureTextEntry
         maxLength={4}
+        secureTextEntry
       />
-      <TouchableOpacity style={styles.joinButton}>
-        <Text style={styles.joinButtonText}>Join Private Table</Text>
+
+      {error ? (
+        <Text style={styles.errorText}>{error}</Text>
+      ) : (
+        <Text style={styles.helperText}>
+          Enter the 4-digit PIN shared by the table host
+        </Text>
+      )}
+
+      <TouchableOpacity 
+        style={[
+          styles.joinButton, 
+          loading && styles.joinButtonDisabled,
+          error && styles.joinButtonError
+        ]}
+        onPress={handleJoinPrivateTable}
+        disabled={loading}
+      >
+        <Text style={styles.joinButtonText}>
+          {loading ? 'Joining...' : 'Join Private Table'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -197,46 +303,115 @@ const TableChatPreview = ({
 
 export default function WelcomeScreen() {
   const { height } = useWindowDimensions();
-  const [activeTab, setActiveTab] = useState(0); // 0: Private, 1: Public
+  const [activeTab, setActiveTab] = useState(0);
   const navigation = useNavigation();
+  const [publicTables, setPublicTables] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sample data with topics and capacity
-  const sampleTableChats = [
-    {
-      id: 1,
-      title: "JJ's Place Dinner",
-      location: "JJ's Place",
-      topics: ["Sports", "Casual", "First-Years"],
-      currentSize: 3,
-      maxCapacity: 6,
-      time: "Starting in 30min"
-    },
-    {
-      id: 2,
-      title: "International Students",
-      location: "Ferris Booth",
-      topics: ["International", "Cultural", "Language Exchange"],
-      currentSize: 4,
-      maxCapacity: 8,
-      time: "Starting in 1h"
-    },
-    {
-      id: 3,
-      title: "CS Study Group",
-      location: "John Jay",
-      topics: ["Academic", "Computer Science", "Study Group"],
-      currentSize: 2,
-      maxCapacity: 4,
-      time: "Starting now"
+  // Move fetchPublicTables outside useEffect so it can be reused
+  const fetchPublicTables = async () => {
+    try {
+      setLoading(true);
+      const { data: tables, error } = await supabase
+        .from('dining_tables')
+        .select(`
+          id,
+          dining_hall,
+          table_name,
+          size,
+          current_members,
+          created_at,
+          table_interests (
+            interest:interests (
+              name
+            )
+          )
+        `)
+        .eq('privacy', 'public')
+        .eq('is_locked', false)
+        .gt('current_members', 0)
+        .lt('current_members', 8);
+
+      if (error) throw error;
+
+      const formattedTables = tables.map(table => ({
+        id: table.id,
+        title: table.table_name,
+        location: table.dining_hall,
+        topics: table.table_interests.map(ti => ti.interest.name),
+        currentSize: table.current_members,
+        maxCapacity: parseInt(table.size),
+        time: getTimeDisplay(table.created_at)
+      }));
+
+      setPublicTables(formattedTables);
+    } catch (error) {
+      console.error('Error fetching public tables:', error);
+      alert('Failed to load available tables');
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
-  const handleJoinTable = (tableId) => {
-    // Handle joining the table
-    const table = sampleTableChats.find(t => t.id === tableId);
-    if (table && table.currentSize < table.maxCapacity) {
-      console.log(`Joining table ${tableId}`);
-      // Navigate to table chat or show join confirmation
+  // Use fetchPublicTables in useEffect
+  useEffect(() => {
+    if (activeTab === 1) {
+      fetchPublicTables();
+    }
+  }, [activeTab]);
+
+  // Helper function to format time display
+  const getTimeDisplay = (createdAt: string) => {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - created.getTime()) / (1000 * 60));
+
+    if (diffMinutes < 1) return 'Starting now';
+    if (diffMinutes < 60) return `Started ${diffMinutes}m ago`;
+    return `Started ${Math.floor(diffMinutes / 60)}h ago`;
+  };
+
+  // Now handleJoinTable can access fetchPublicTables
+  const handleJoinTable = async (tableId: number) => {
+    try {
+      // Get current user's session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) throw sessionError;
+      
+      if (!session?.user) {
+        alert('Please sign in to join a table');
+        return;
+      }
+
+      // Get user's profile to get their UNI
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('uni')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      if (!profile?.uni) {
+        alert('Could not find your UNI. Please update your profile.');
+        return;
+      }
+
+      // Use the stored procedure to join the table
+      const { error } = await supabase.rpc('join_table', {
+        p_table_id: tableId,
+        p_uni: profile.uni
+      });
+
+      if (error) throw error;
+
+      // Now we can call fetchPublicTables
+      await fetchPublicTables();
+
+    } catch (error) {
+      console.error('Error joining table:', error);
+      alert('Failed to join table. Please try again.');
     }
   };
 
@@ -256,13 +431,19 @@ export default function WelcomeScreen() {
             <View style={styles.tableChatsSection}>
               <Text style={styles.notif}>Available Tables</Text>
               <View style={styles.chatsContainer}>
-                {sampleTableChats.map(chat => (
-                  <TableChatPreview
-                    key={chat.id}
-                    {...chat}
-                    onPress={() => handleJoinTable(chat.id)}
-                  />
-                ))}
+                {loading ? (
+                  <Text>Loading available tables...</Text>
+                ) : publicTables.length === 0 ? (
+                  <Text>No tables available at the moment</Text>
+                ) : (
+                  publicTables.map(table => (
+                    <TableChatPreview
+                      key={table.id}
+                      {...table}
+                      onPress={() => handleJoinTable(table.id)}
+                    />
+                  ))
+                )}
               </View>
             </View>
           )}
@@ -444,8 +625,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
     padding: 12,
-    marginBottom: 16,
+    marginBottom: 8,  // Reduced to make room for error text
     fontSize: 16,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#CCCCCC',
+  },
+  inputError: {
+    borderColor: '#E15C11',  // Orange border for errors
+    backgroundColor: '#FFF8F6',  // Light orange background
+  },
+  errorText: {
+    color: '#E15C11',
+    fontSize: 14,
+    marginBottom: 16,
+    marginLeft: 4,
+  },
+  helperText: {
+    color: '#666666',
+    fontSize: 14,
+    marginBottom: 16,
+    marginLeft: 4,
+  },
+  joinButtonError: {
+    backgroundColor: '#FFE4CC',  // Lighter orange for error state
   },
   sectionTitle: {
     fontSize: 20,

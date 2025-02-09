@@ -4,7 +4,7 @@ import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimen
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface DiningButtonProps {
   title: string;
@@ -73,22 +73,21 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const [userName, setUserName] = useState(() => {
     // Initialize name synchronously if possible
-    supabase.auth.getSession().then(({ data: { session }}) => {
-      if (session?.user?.id) {
-        supabase
-          .from('profiles')
-          .select('firstName')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => {
-            if (data?.firstName) setUserName(data.firstName);
-          });
-      }
-    });
+    const session = supabase.auth.session;
+    if (session?.user?.id) {
+      supabase
+        .from('profiles')
+        .select('firstName')
+        .eq('id', session.user.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.firstName) setUserName(data.firstName);
+        });
+    }
     return ''; // Initial empty state
   });
   const dataFetched = useRef(false);
-  const recommendedDining = "John Jay";
+  const [recommendedDining, setRecommendedDining] = useState('');
   const { height } = useWindowDimensions();
   const [jjsData, setJjsData] = useState<OccupancyData>({ use: null, capacity: 198 });
   const [johnJayData, setJohnJayData] = useState<OccupancyData>({ use: null, capacity: 400 });
@@ -157,13 +156,12 @@ export default function WelcomeScreen() {
             capacity: capacity
           };
 
-          // Update both memory cache and AsyncStorage
+          // Update both memory cache and AsyncStorgae
           occupancyCache.current[location] = {
             data: newData,
             lastFetched: now
           };
-          
-          await AsyncStorage.setItem(`${location}_occupancy`, JSON.stringify(newData));
+          AsyncStorage.setItem(location, JSON.stringify(newData));
 
           if (!cache.data || cache.data.use !== newData.use) {
             setData(newData);
@@ -181,10 +179,10 @@ export default function WelcomeScreen() {
     }
   };
 
-  // Get initial session and set username in useEffect
+  // Single useEffect for auth and profile management
   useEffect(() => {
     async function initializeUser() {
-      if (dataFetched.current) return; // Keep the single-run check
+      if (dataFetched.current) return; // Only run once
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -598,6 +596,85 @@ export default function WelcomeScreen() {
     );
   };
 
+  const [diningHallScores, setDiningHallScores] = useState([]);
+
+  useEffect(() => {
+    async function fetchDiningData() {
+      try {
+        const { data: meals, error } = await supabase
+          .from('nutrition_cache')
+          .select('*');
+
+        if (error) throw error;
+
+        // Group meals by dining hall
+        const diningHalls = {};
+        meals.forEach(meal => {
+          if (!diningHalls[meal.dining_hall]) {
+            diningHalls[meal.dining_hall] = [];
+          }
+          diningHalls[meal.dining_hall].push(meal.nutrition_data);
+        });
+
+        // Calculate average scores for each dining hall
+        const scoredHalls = Object.entries(diningHalls).map(([name, meals]) => {
+          // Calculate averages
+          const avgNutrition = meals.reduce((acc, meal) => {
+            acc.protein += meal.protein;
+            acc.calories += meal.calories;
+            acc.fiber += meal.fiber;
+            acc.fat += meal.fat;
+            acc.sodium += meal.sodium;
+            return acc;
+          }, { protein: 0, calories: 0, fiber: 0, fat: 0, sodium: 0 });
+
+          const mealCount = meals.length;
+          Object.keys(avgNutrition).forEach(key => {
+            avgNutrition[key] = avgNutrition[key] / mealCount;
+          });
+
+          // Calculate health score
+          // 40% protein-to-calorie ratio
+          // 30% fiber content
+          // 30% penalty for high fat and sodium
+          const proteinScore = (avgNutrition.protein / avgNutrition.calories) * 40;
+          const fiberScore = (avgNutrition.fiber / 25) * 30; // 25g is daily recommended fiber
+          const penaltyScore = Math.max(0, 30 - (avgNutrition.fat / 65 + avgNutrition.sodium / 2300) * 15);
+          
+          const totalScore = parseInt((proteinScore + fiberScore + penaltyScore).toFixed(0));
+
+          return {
+            name,
+            score: totalScore,
+            averages: avgNutrition,
+            mealCount
+          };
+        }).sort((a, b) => b.score - a.score);
+
+        setDiningHallScores(scoredHalls);
+        
+        // Store the recommended dining hall
+        if (scoredHalls.length > 0) {
+          setRecommendedDining(scoredHalls[0].name);
+          console.log('Recommended Dining Hall:', scoredHalls[0].name);
+          console.log('Health Score:', scoredHalls[0].score);
+          console.log('Average Nutrition per Meal:');
+          console.log('- Protein:', scoredHalls[0].averages.protein.toFixed(1) + 'g');
+          console.log('- Calories:', scoredHalls[0].averages.calories.toFixed(0));
+          console.log('- Fiber:', scoredHalls[0].averages.fiber.toFixed(1) + 'g');
+          console.log('- Fat:', scoredHalls[0].averages.fat.toFixed(1) + 'g');
+          console.log('- Sodium:', scoredHalls[0].averages.sodium.toFixed(0) + 'mg');
+          console.log('Based on', scoredHalls[0].mealCount, 'meals');
+        }
+
+      } catch (error) {
+        console.error('Error fetching dining data:', error);
+      }
+    }
+
+    fetchDiningData();
+  }, []);
+
   return (
   
   <View style = {styles.body}>
@@ -613,7 +690,7 @@ export default function WelcomeScreen() {
             <Text style={styles.title}>
               Hey {userName || 'there'},
             </Text>
-            <Text style={styles.desc}>Let's hit up <Text style={styles.bold}>{recommendedDining}</Text>, your usual spot.</Text>
+            <Text style={styles.desc}>Today's Recommended Dining Hall is ... <Text style={styles.bold}>{recommendedDining}</Text>!</Text>
           </View>
           <View style = {styles.image1}>
             <Image source={require("../assets/images/Animal Avatar.png")}/>

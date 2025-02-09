@@ -248,7 +248,7 @@ export default function menu() {
                 <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
               </TouchableOpacity>              
               <View  style = {styles.topheader}>
-                  <View style = {styles.openable}> <Text style={styles.openabletext}>{isOpen}</Text></View>
+                  <View style={[styles.openable, isOpen === "CLOSED" && styles.closedBadge]}> <Text style={[styles.openabletext, isOpen === "CLOSED" && styles.closedText]}>{isOpen}</Text></View>
                   <Text style={styles.title}>{clickedDining}</Text>
               </View>
               <View style = {styles.bottomheader}>
@@ -257,100 +257,107 @@ export default function menu() {
             </ImageBackground>
         </View>
 
-        {/* Welcome Text */}
-        <View>
-          <View style = {styles.stats}>
-            <View style = {styles.stat}>
-              <View style = {styles.nutri}>
-                <Text style = {styles.Stitle}>Nutri-score</Text>
-                <Image source={require("../assets/images/tooltip.png")} />
-              </View>
-              <View style = {styles.nutri}>
-                <Text style={styles.Stitle}>Current Seating Capacity</Text>
-                <Image source={require("../assets/images/tooltip.png")} />
-              </View>
-            </View>
-            <View style = {styles.imageM}>
-              <Image source={require("../assets/images/NutriA.png")} />
-              <DiningButton 
-                title="John Jay" 
-                use={occupancyData.use} 
-                capacity={occupancyData.capacity} 
-              />
-            </View>
+        {isOpen === "CLOSED" ? (
+          <View style={styles.closedContainer}>
+            <Text style={styles.closedMessage}>
+              John Jay Dining Hall is currently closed.{'\n'}
+              Please check back during operating hours:{'\n'}
+              {timing}
+            </Text>
           </View>
+        ) : (
+          <View>
+            <View style = {styles.stats}>
+              <View style = {styles.stat}>
+                <View style = {styles.nutri}>
+                  <Text style = {styles.Stitle}>Nutri-score</Text>
+                  <Image source={require("../assets/images/tooltip.png")} />
+                </View>
+                <View style = {styles.nutri}>
+                  <Text style={styles.Stitle}>Current Seating Capacity</Text>
+                  <Image source={require("../assets/images/tooltip.png")} />
+                </View>
+              </View>
+              <View style = {styles.imageM}>
+                <Image source={require("../assets/images/NutriA.png")} />
+                <DiningButton 
+                  title="John Jay" 
+                  use={occupancyData.use} 
+                  capacity={occupancyData.capacity} 
+                />
+              </View>
+            </View>
 
-          <View  style={styles.menuTitle}>
-            <Text style={styles.titleM}>Menu</Text>
-          </View>
-          <View style={styles.menuContainer}>
-            {menuLoading ? (
-              <View style={styles.loadingContainer}>
-                <Text style={styles.loadingText}>Loading menu...</Text>
-              </View>
-            ) : (
-              Object.entries(menuItems).map(([foodType, items]) => (
-                <View key={foodType} style={styles.foodTypeSection}>
-                  <View style={styles.foodTypeTitleContainer}>
-                    <Text style={styles.foodTypeTitle}>{foodType}</Text>
-                  </View>
-                  
-                  {items.map((item: any, index: number) => (
-                    <View key={index} style={styles.menuItem}>
-                      <View style={styles.menuItemContent}>
-                        <View style={styles.menuItemLeft}>
-                          <Text style={styles.menuItemName}>{item.foodName}</Text>
-                          {item.nutrition?.calories && (
-                            <Text style={styles.calories}>{item.nutrition.calories} cal</Text>
-                          )}
-                          {item.contains && 
-                           item.contains.replace(/[{}"\[\]]/g, '').split(',').filter(Boolean).length > 0 && (
-                            <Text style={styles.allergens}>
-                              Contains: {item.contains.replace(/[{}]/g, '').split(',').filter(Boolean).join(', ')}
-                            </Text>
-                          )}
-                        </View>
-                        <View style={styles.dietaryIconsContainer}>
-                          {item.dietaryPreferences && 
-                           (typeof item.dietaryPreferences === 'string' 
-                            ? item.dietaryPreferences
-                            : JSON.stringify(item.dietaryPreferences))
-                            .replace(/[{}"\[\]]/g, '')
-                            .split(',')
-                            .filter(pref => pref && pref.trim().length > 0)
-                            .map((diet, i) => {
-                              const cleanDiet = diet.trim();
-                              return dietIcons[cleanDiet] && (
-                                <Image 
-                                  key={i} 
-                                  source={dietIcons[cleanDiet]} 
-                                  style={styles.dietaryIcon} 
-                                />
-                              );
-                            })
-                          }
+            <View  style={styles.menuTitle}>
+              <Text style={styles.titleM}>Menu</Text>
+            </View>
+            <View style={styles.menuContainer}>
+              {menuLoading ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Loading menu...</Text>
+                </View>
+              ) : (
+                Object.entries(menuItems).map(([foodType, items]) => (
+                  <View key={foodType} style={styles.foodTypeSection}>
+                    <View style={styles.foodTypeTitleContainer}>
+                      <Text style={styles.foodTypeTitle}>{foodType}</Text>
+                    </View>
+                    
+                    {items.map((item: any, index: number) => (
+                      <View key={index} style={styles.menuItem}>
+                        <View style={styles.menuItemContent}>
+                          <View style={styles.menuItemLeft}>
+                            <Text style={styles.menuItemName}>{item.foodName}</Text>
+                            {item.nutrition?.calories && (
+                              <Text style={styles.calories}>{item.nutrition.calories} cal</Text>
+                            )}
+                            {item.contains && 
+                             item.contains.replace(/[{}"\[\]]/g, '').split(',').filter(Boolean).length > 0 && (
+                              <Text style={styles.allergens}>
+                                Contains: {item.contains.replace(/[{}]/g, '').split(',').filter(Boolean).join(', ')}
+                              </Text>
+                            )}
+                          </View>
+                          <View style={styles.dietaryIconsContainer}>
+                            {item.dietaryPreferences && 
+                             (typeof item.dietaryPreferences === 'string' 
+                              ? item.dietaryPreferences
+                              : JSON.stringify(item.dietaryPreferences))
+                              .replace(/[{}"\[\]]/g, '')
+                              .split(',')
+                              .filter(pref => pref && pref.trim().length > 0)
+                              .map((diet, i) => {
+                                const cleanDiet = diet.trim();
+                                return dietIcons[cleanDiet] && (
+                                  <Image 
+                                    key={i} 
+                                    source={dietIcons[cleanDiet]} 
+                                    style={styles.dietaryIcon} 
+                                  />
+                                );
+                              })
+                            }
+                          </View>
                         </View>
                       </View>
-                    </View>
-                  ))}
+                    ))}
+                  </View>
+                ))
+              )}
+            </View>
+            <View style={styles.reviewsContainer}>
+              <Text style={styles.sectionTitle}>Reviews</Text>
+              {reviews.map((review, index) => (
+                <View key={index} style={styles.reviewItem}>
+                  <Text style={styles.reviewText}>
+                    <Text style={styles.bold}>{review.name}</Text>: {review.comment}
+                  </Text>
+                  <View style={styles.starContainer}>{renderStars(review.rating)}</View>
                 </View>
-              ))
-            )}
+              ))}
+            </View>
           </View>
-          <View style={styles.reviewsContainer}>
-            <Text style={styles.sectionTitle}>Reviews</Text>
-            {reviews.map((review, index) => (
-              <View key={index} style={styles.reviewItem}>
-                <Text style={styles.reviewText}>
-                  <Text style={styles.bold}>{review.name}</Text>: {review.comment}
-                </Text>
-                <View style={styles.starContainer}>{renderStars(review.rating)}</View>
-              </View>
-            ))}
-          </View>
-
-
-        </View>
+        )}
        
 
       </ScrollView>
@@ -618,5 +625,25 @@ overlay: {
   dietaryIconsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  closedBadge: {
+    backgroundColor: '#FF4B4B',
+  },
+  closedText: {
+    color: '#FFFFFF',
+  },
+  closedContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    marginTop: 40,
+  },
+  closedMessage: {
+    fontSize: 18,
+    textAlign: 'center',
+    color: '#423934',
+    lineHeight: 28,
+    fontWeight: '500',
   },
 });

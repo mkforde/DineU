@@ -2,6 +2,7 @@ import React from "react";
 import { useState } from 'react';
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, ScrollView, useWindowDimensions } from "react-native";
 import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
 
 interface DiningButtonProps {
@@ -11,6 +12,19 @@ interface DiningButtonProps {
   capacity: number;
 }
 
+// Add these predefined arrays
+const DINING_HALLS = [
+  { id: 'johnjay', title: "John Jay", image: require("../assets/images/johnjay.jpg"), capacity: 400 },
+  { id: 'jjs', title: "JJs", image: require("../assets/images/jjs.jpg"), capacity: 198 },
+  { id: 'facultyhouse', title: "Faculty House", image: require("../assets/images/fac.jpg"), capacity: 60 },
+  { id: 'ferris', title: "Ferris", image: require("../assets/images/ferris.jpg"), capacity: 363 },
+  { id: 'dianas', title: "Dianas", image: require("../assets/images/dianas.jpg"), capacity: 120 },
+  { id: 'hewitt', title: "Hewitt", image: require("../assets/images/hewitt.jpg"), capacity: 150 },
+  { id: 'johnnys', title: "Johnnys", image: require("../assets/images/johnnys.jpg"), capacity: 60 },
+  { id: 'facshack', title: "Fac Shack", image: require("../assets/images/facshack.jpg"), capacity: 60 },
+  { id: 'chefmikes', title: "Chef Mikes", image: require("../assets/images/chefmikes.jpg"), capacity: 171 },
+  { id: 'chefdons', title: "Chef Dons", image: require("../assets/images/chefdons.jpg"), capacity: 60 }
+];
 
 function CustomBottomNav() {
   const [activeTab, setActiveTab] = useState("table");
@@ -50,9 +64,9 @@ function CustomBottomNav() {
 }
 export default function WelcomeScreen() {
   const { height } = useWindowDimensions();
+  const navigation = useNavigation();
   
   const DiningButton = ({ title, image, use, capacity }: DiningButtonProps) => {
-    const navigation = useNavigation();
     const fillPercentage = use / capacity;
     
     // Determine bar color
@@ -67,13 +81,19 @@ export default function WelcomeScreen() {
       barColor = "#E11111";
     }
 
+    // Create dining hall object with all necessary info
+    const diningHall = {
+      name: title,
+      image: image,
+      use: use,
+      capacity: capacity
+    };
+
     return (
       <TouchableOpacity 
         style={styles.diningButton}
         onPress={() => {
-          navigation.navigate("CreateTableStep2", {
-            diningHall: title
-          });
+          navigation.navigate('CreateTableStep2', { diningHall }); // Pass the full object
         }}
       >
         <ImageBackground source={image} resizeMode="cover" style={styles.imageBackground}>
@@ -88,36 +108,42 @@ export default function WelcomeScreen() {
   return (
     <View style={styles.body}>
       <View style={styles.container}>
-        <ScrollView style={{ height: height - 82 }}>
+        <ScrollView style={{ height: height - 82, marginBottom: 80 }}>
           <View style={styles.top}>
             <Text style={styles.title}>Create a table</Text>
             <Image source={require("../assets/images/Progress bar 1.png")}/>
           </View>
           <Text style={styles.subtitle}>Choose your dining hall:</Text>
-          <View style = {styles.dining}>
-            <View style={styles.diningRow}>
-              <DiningButton title="John Jay" image={require("../assets/images/johnjay.jpg")} use={55} capacity = {80}  />
-              <DiningButton title="JJs" image={require("../assets/images/jjs.jpg")} use={70} capacity = {70}  />
-            </View>
-            <View style={styles.diningRow}>
-              <DiningButton title="Faculty House" image={require("../assets/images/fac.jpg")} use={30} capacity = {60}  />
-              <DiningButton title="Ferris" image={require("../assets/images/ferris.jpg")} use={10} capacity = {93}  />
-            </View>
-            <View style={styles.diningRow}>
-              <DiningButton title="Dianas" image={require("../assets/images/dianas.jpg")} use={30} capacity = {60}  />
-              <DiningButton title="Hewitt" image={require("../assets/images/hewitt.jpg")} use={10} capacity = {93}  />
-            </View>
-            <View style={styles.diningRow}>
-              <DiningButton title="Johnnys" image={require("../assets/images/johnnys.jpg")} use={30} capacity = {60}  />
-              <DiningButton title="Fac Shack" image={require("../assets/images/facshack.jpg")} use={10} capacity = {93}  />
-            </View>
-            <View style={styles.diningRow}>
-              <DiningButton title="Chef Mikes" image={require("../assets/images/chefmikes.jpg")} use={30} capacity = {60}  />
-              <DiningButton title="Chef Dons" image={require("../assets/images/chefdons.jpg")} use={10} capacity = {93}  />
-            </View>
+          <View style={styles.dining}>
+            {DINING_HALLS.reduce((rows, hall, index) => {
+              if (index % 2 === 0) rows.push([]);
+              rows[rows.length - 1].push(hall);
+              return rows;
+            }, []).map((row, i) => (
+              <View key={i} style={styles.diningRow}>
+                {row.map(hall => (
+                  <DiningButton
+                    key={hall.id}
+                    title={hall.title}
+                    image={hall.image}
+                    use={ 0}
+                    capacity={hall.capacity}
+                  />
+                ))}
+              </View>
+            ))}
           </View>
         </ScrollView>
+        
+        <View style={styles.closeButtonContainer}>
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => navigation.navigate('table')}
+          >
+            <Text style={styles.closeButtonText}>Cancel</Text>
+          </TouchableOpacity>
         </View>
+      </View>
     </View>
   );
 }
@@ -379,6 +405,28 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: "100%",
+  },
+
+  closeButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor: '#FDFECC',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+  },
+  closeButton: {
+    backgroundColor: "#E15C11",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  closeButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 
 });

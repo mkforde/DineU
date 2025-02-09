@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, ScrollView, useWindowDimensions, TextInput } from "react-native";
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
 
 interface DiningButtonProps {
@@ -47,6 +48,26 @@ function CustomBottomNav() {
     </View>
   );
 }
+
+// Predefined arrays for vibes and interests
+const VIBES = [
+  "Chill & Casual",
+  "Debate & Discuss",
+  "Lively & Social",
+  "Cram Session",
+  "Quiet & Relaxed",
+  "Speedy Vibes"
+];
+
+const INTERESTS = [
+  "Music & Arts",
+  "Travel & Adventure",
+  "Gaming & Esports",
+  "STEM & Tech Talk",
+  "Fitness & Wellness",
+  "Foodies & Chefs"
+];
+
 export default function CreateTableStep3() {
   const { height } = useWindowDimensions();
   const navigation = useNavigation();
@@ -56,24 +77,6 @@ export default function CreateTableStep3() {
 
   const [selectedVibes, setSelectedVibes] = useState([]);
   const [selectedInterests, setSelectedInterests] = useState([]);
-
-  const vibes = [
-    "Chill & Casual",
-    "Debate & Discuss",
-    "Lively & Social",
-    "Cram Session",
-    "Quiet & Relaxed",
-    "Speedy Vibes"
-  ];
-
-  const interests = [
-    "Music & Arts",
-    "Travel & Adventure",
-    "Gaming & Esports",
-    "STEM & Tech Talk",
-    "Fitness & Wellness",
-    "Foodies & Chefs"
-  ];
 
   const toggleVibe = (vibe) => {
     setSelectedVibes(prev => 
@@ -91,15 +94,107 @@ export default function CreateTableStep3() {
     );
   };
 
-  const handleSubmit = () => {
-    navigation.navigate('GenerateTable', {
-      diningHall,
-      tableName,
-      isPrivate,
-      tableSize,
-      selectedVibes,
-      selectedInterests
-    });
+  const handleSubmit = async () => {
+    try {
+      // Get current user's session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) throw sessionError;
+      
+      if (!session?.user) {
+        alert('Please sign in to create a table');
+        return;
+      }
+
+      // Get user's profile to get their UNI
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('uni')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      if (!profile?.uni) {
+        alert('Could not find your UNI. Please update your profile.');
+        return;
+      }
+
+      // Now use the actual UNI from the profile
+      const uni = profile.uni;
+
+      // Generate PIN if table is private
+      const pin = isPrivate ? Math.floor(1000 + Math.random() * 9000).toString() : null;
+
+      // Create the table
+      const { data: table, error: tableError } = await supabase
+        .from('dining_tables')
+        .insert({
+          dining_hall: diningHall.name,
+          table_name: tableName,
+          privacy: isPrivate ? 'private' : 'public',
+          size: tableSize.toString(),
+          created_by: uni,
+          is_locked: false,
+          current_members: 1,
+          pin: pin  // Store the PIN
+        })
+        .select()
+        .single();
+
+      if (tableError) throw tableError;
+
+      // Add member
+      const { error: memberError } = await supabase
+        .from('members')  // Remove 'tables.' prefix
+        .insert({
+          table_id: table.id,
+          uni: uni,
+          is_host: true
+        });
+
+      if (memberError) throw memberError;
+
+      // Get vibes and interests
+      const { data: vibeIds } = await supabase
+        .from('vibes')  // Remove 'tables.' prefix
+        .select('id, name')
+        .in('name', selectedVibes);
+
+      const { data: interestIds } = await supabase
+        .from('interests')  // Remove 'tables.' prefix
+        .select('id, name')
+        .in('name', selectedInterests);
+
+      // Combine all interests
+      const allInterests = [
+        ...(vibeIds || []).map(v => ({ table_id: table.id, interest_id: v.id })),
+        ...(interestIds || []).map(i => ({ table_id: table.id, interest_id: i.id }))
+      ];
+
+      // Add interests
+      const { error: interestsError } = await supabase
+        .from('table_interests')  // Remove 'tables.' prefix
+        .insert(allInterests);
+
+      if (interestsError) throw interestsError;
+
+      // Pass the PIN to GenerateTable
+      navigation.navigate('GenerateTable', {
+        tableId: table.id,
+        diningHall: diningHall.name,
+        tableName,
+        isPrivate,
+        tableSize,
+        selectedVibes,
+        selectedInterests,
+        pin  // Pass the PIN
+      });
+
+    } catch (error) {
+      console.error('Error creating table:', error);
+      alert('Failed to create table. Please try again.');
+    }
   };
 
   const DiningButton = ({ title, image, use, capacity }: DiningButtonProps) => {
@@ -137,10 +232,10 @@ export default function CreateTableStep3() {
   return (
     <View style={styles.body}>
       <View style={styles.container}>
-        <ScrollView style={{ height: height - 82 }}>
+        <ScrollView style={{ height: height - 82, marginBottom: 80 }}>
           <View style={styles.top}>
-            <Text style={styles.title}>Set the Vibe</Text>
-            <Text style={styles.subtitle}>for {tableName}</Text>
+            <Text style={styles.title}>Create a table</Text>
+            <Text style={styles.subtitle}>at {diningHall.name}</Text>
             <Image source={require("../assets/images/Progress bar3.png")}/>
           </View>
 
@@ -148,7 +243,7 @@ export default function CreateTableStep3() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>What's the vibe?</Text>
             <View style={styles.tagsContainer}>
-              {vibes.map((vibe) => (
+              {VIBES.map((vibe) => (
                 <TouchableOpacity
                   key={vibe}
                   style={[
@@ -172,7 +267,7 @@ export default function CreateTableStep3() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Interests/topics:</Text>
             <View style={styles.tagsContainer}>
-              {interests.map((interest) => (
+              {INTERESTS.map((interest) => (
                 <TouchableOpacity
                   key={interest}
                   style={[
@@ -200,6 +295,15 @@ export default function CreateTableStep3() {
             <Text style={styles.submitButtonText}>Create a table</Text>
           </TouchableOpacity>
         </ScrollView>
+        
+        <View style={styles.closeButtonContainer}>
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => navigation.navigate('table')}
+          >
+            <Text style={styles.closeButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -314,5 +418,26 @@ const styles = StyleSheet.create({
     color: "#FFFFFF", // Light yellow text
     fontWeight: "900",
     marginLeft: "5%",
+  },
+  closeButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor: '#FDFECC',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+  },
+  closeButton: {
+    backgroundColor: "#E15C11",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  closeButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, ScrollView, useWindowDimensions, TextInput } from "react-native";
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
 
 interface DiningButtonProps {
@@ -52,22 +53,71 @@ export default function CreateTableStep2() {
   const navigation = useNavigation();
   const route = useRoute();
   
-  // Add null check and default value
-  const diningHall = route.params?.diningHall || "Selected Dining Hall";
+  // Get the dining hall object from route params
+  const diningHall = route.params?.diningHall;
+
+  if (!diningHall) {
+    // If no dining hall was selected, go back to selection
+    navigation.navigate('createtable');
+    return null;
+  }
 
   const [tableName, setTableName] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [tableSize, setTableSize] = useState(2);
 
-  const handleSubmit = () => {
-    if (tableName.length > 0 && tableName.length <= 10) {
-      navigation.navigate('CreateTableStep3', {
-        diningHall,
-        tableName,
-        isPrivate,
-        tableSize
-      });
+  const validateTableName = async (name: string) => {
+    if (!name) return false;
+    
+    // Check if table name exists for this dining hall
+    const { data, error } = await supabase
+      .from('dining_tables')
+      .select('id')
+      .eq('dining_hall', diningHall.id)
+      .eq('table_name', name)
+      .eq('active', true)
+      .single();
+
+    if (error) {
+      console.error('Error checking table name:', error);
+      return false;
     }
+
+    return !data; // Return true if name is available
+  };
+
+  const handleSubmit = async () => {
+    if (tableName.length === 0 || tableName.length > 10) {
+      alert('Table name must be between 1 and 10 characters');
+      return;
+    }
+
+    // Check if table name exists
+    const { data: existingTable, error: checkError } = await supabase
+      .from('dining_tables')
+      .select('id')
+      .eq('dining_hall', diningHall.name)  // Use diningHall.name here
+      .eq('table_name', tableName)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('Error checking table name:', checkError);
+      alert('Error checking table name availability');
+      return;
+    }
+
+    if (existingTable) {
+      alert('This table name is already taken in this dining hall');
+      return;
+    }
+
+    // If all checks pass, navigate to next step
+    navigation.navigate('CreateTableStep3', {
+      diningHall,
+      tableName,
+      isPrivate,
+      tableSize
+    });
   };
 
   const DiningButton = ({ title, image, use, capacity }: DiningButtonProps) => {
@@ -105,10 +155,10 @@ export default function CreateTableStep2() {
   return (
     <View style={styles.body}>
       <View style={styles.container}>
-        <ScrollView style={{ height: height - 82 }}>
+        <ScrollView style={{ height: height - 82, marginBottom: 80 }}>
           <View style={styles.top}>
             <Text style={styles.title}>Create a table</Text>
-            <Text style={styles.subtitle}>at {diningHall}</Text>
+            <Text style={styles.subtitle}>at {diningHall.name}</Text>
             <Image source={require("../assets/images/Project bar 2.png")}/>
           </View>
 
@@ -170,6 +220,15 @@ export default function CreateTableStep2() {
             <Text style={styles.submitButtonText}>Continue</Text>
           </TouchableOpacity>
         </ScrollView>
+        
+        <View style={styles.closeButtonContainer}>
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => navigation.navigate('table')}
+          >
+            <Text style={styles.closeButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -316,5 +375,24 @@ const styles = StyleSheet.create({
     color: "#FFFFFF", // Light yellow text
     fontWeight: "900",
     marginLeft: "5%",
+  },
+  closeButtonContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    backgroundColor: "#FFFFFF",
+  },
+  closeButton: {
+    backgroundColor: "#E15C11",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  closeButtonText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "600",
   },
 });
