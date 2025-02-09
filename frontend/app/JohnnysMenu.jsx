@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
+import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions, SafeAreaView } from "react-native";
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Add this function to check Johnny's hours
 function checkJohnnysHours() {
@@ -15,10 +16,7 @@ export default function menu() {
   const navigation = useNavigation(); // Initialize navigation
   const [menuItems, setMenuItems] = useState({});
   const [menuLoading, setMenuLoading] = useState(true);
-  const [occupancyData, setOccupancyData] = useState(() => {
-    const cached = localStorage.getItem('johnnys_occupancy');
-    return cached ? JSON.parse(cached) : { use: 0, capacity: 60 };
-  });
+  const [occupancyData, setOccupancyData] = useState({ use: 0, capacity: 60 });
   const [isOpen, setIsOpen] = useState(checkJohnnysHours());
 
   const reviews = [
@@ -137,6 +135,21 @@ export default function menu() {
     return () => clearInterval(interval);
   }, []);
 
+  // Add useEffect to load stored data
+  useEffect(() => {
+    async function loadStoredData() {
+      try {
+        const cached = await AsyncStorage.getItem('johnnys_occupancy');
+        if (cached) {
+          setOccupancyData(JSON.parse(cached));
+        }
+      } catch (error) {
+        console.error('Error loading stored data:', error);
+      }
+    }
+    loadStoredData();
+  }, []);
+
   const name = "Alice";
   const clickedDining = "Johnnys";
   const { height } = useWindowDimensions(); // Auto-updating height
@@ -238,74 +251,74 @@ export default function menu() {
   };
 
   return (
-  
-  <View style = {styles.body}>
-    <View style={styles.container}>
-      <ScrollView> 
-        <View style={styles.header}>
-            <ImageBackground source= {require("../assets/images/johnnys.jpg")} resizeMode="cover" style={styles.imageBackground}>
-              <View style={styles.overlay} />
-              <TouchableOpacity style={styles.imgback} onPress={() => navigation.goBack()}>
-                <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
-              </TouchableOpacity>              
-              <View  style = {styles.topheader}>
-                  <View style = {styles.openable}> <Text style={styles.openabletext}>{isOpen ? "OPEN" : "CLOSED"}</Text></View>
-                  <Text style={styles.title}>{clickedDining}</Text>
-              </View>
-              <View style = {styles.bottomheader}>
-                  <Text style={styles.subtitle}>{timing}</Text>
-              </View>
-            </ImageBackground>
-        </View>
-
-        {/* Welcome Text */}
-        <View>
-          <View style = {styles.stats}>
-            <View style = {styles.stat}>
-              <View style = {styles.nutri}>
-                <Text style = {styles.Stitle}>Nutri-score</Text>
-                <Image source={require("../assets/images/tooltip.png")} />
-              </View>
-              <View style = {styles.nutri}>
-                <Text style={styles.Stitle}>Current Seating Capacity</Text>
-                <Image source={require("../assets/images/tooltip.png")} />
-              </View>
+    <SafeAreaView style={styles.container}>
+      <ScrollView>
+        <View style={styles.container}>
+          <ScrollView> 
+            <View style={styles.header}>
+                <ImageBackground source= {require("../assets/images/johnnys.jpg")} resizeMode="cover" style={styles.imageBackground}>
+                  <View style={styles.overlay} />
+                  <TouchableOpacity style={styles.imgback} onPress={() => navigation.goBack()}>
+                    <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
+                  </TouchableOpacity>              
+                  <View  style = {styles.topheader}>
+                      <View style = {styles.openable}> <Text style={styles.openabletext}>{isOpen ? "OPEN" : "CLOSED"}</Text></View>
+                      <Text style={styles.title}>{clickedDining}</Text>
+                  </View>
+                  <View style = {styles.bottomheader}>
+                      <Text style={styles.subtitle}>{timing}</Text>
+                  </View>
+                </ImageBackground>
             </View>
-            <View style = {styles.imageM}>
-              <Image source={require("../assets/images/NutriB.png")} />
-              <DiningButton title="Fac's" image={require("../assets/images/fac.jpg")} use={occupancyData.use} capacity = {occupancyData.capacity}  />
-            </View>
-          </View>
 
-          <View  style={styles.menuTitle}>
-            <Text style={styles.titleM}>Menu</Text>
-          </View>
-          <View style={styles.menuContainer}>
-            {renderMenu()}
-          </View>
-          <View style={styles.reviewsContainer}>
-            <Text style={styles.sectionTitle}>Reviews</Text>
-            {reviews.map((review, index) => (
-              <View key={index} style={styles.reviewItem}>
-                <Text style={styles.reviewText}>
-                  <Text style={styles.bold}>{review.name}</Text>: {review.comment}
-                </Text>
-                <View style={styles.starContainer}>{renderStars(review.rating)}</View>
+            {/* Welcome Text */}
+            <View>
+              <View style = {styles.stats}>
+                <View style = {styles.stat}>
+                  <View style = {styles.nutri}>
+                    <Text style = {styles.Stitle}>Nutri-score</Text>
+                    <Image source={require("../assets/images/tooltip.png")} />
+                  </View>
+                  <View style = {styles.nutri}>
+                    <Text style={styles.Stitle}>Current Seating Capacity</Text>
+                    <Image source={require("../assets/images/tooltip.png")} />
+                  </View>
+                </View>
+                <View style = {styles.imageM}>
+                  <Image source={require("../assets/images/NutriB.png")} />
+                  <DiningButton title="Fac's" image={require("../assets/images/fac.jpg")} use={occupancyData.use} capacity = {occupancyData.capacity}  />
+                </View>
               </View>
-            ))}
-          </View>
+
+              <View  style={styles.menuTitle}>
+                <Text style={styles.titleM}>Menu</Text>
+              </View>
+              <View style={styles.menuContainer}>
+                {renderMenu()}
+              </View>
+              <View style={styles.reviewsContainer}>
+                <Text style={styles.sectionTitle}>Reviews</Text>
+                {reviews.map((review, index) => (
+                  <View key={index} style={styles.reviewItem}>
+                    <Text style={styles.reviewText}>
+                      <Text style={styles.bold}>{review.name}</Text>: {review.comment}
+                    </Text>
+                    <View style={styles.starContainer}>{renderStars(review.rating)}</View>
+                  </View>
+                ))}
+              </View>
 
 
-        </View>
+            </View>
+           
+
+          </ScrollView>
+          
        
-
+        </View>
       </ScrollView>
-      
-   
-    </View>
-  </View>
+    </SafeAreaView>
   );
- 
 }
 
 
@@ -556,5 +569,9 @@ overlay: {
     fontSize: 14,
     color: '#666',
     marginTop: 2,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
   },
 });

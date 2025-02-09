@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
+import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions, SafeAreaView } from "react-native";
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function checkJohnJayHours() {
   const now = new Date();
@@ -10,17 +11,14 @@ function checkJohnJayHours() {
   return time >= 730 && time <= 2100;
 }
 
-export default function menu() {
+export default function Menu() {
   const navigation = useNavigation(); // Initialize navigation
 
   const [menuItems, setMenuItems] = useState({});
   const [menuLoading, setMenuLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(checkJohnJayHours());
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [occupancyData, setOccupancyData] = useState(() => {
-    const cached = localStorage.getItem('johnjay_occupancy');
-    return cached ? JSON.parse(cached) : { use: 0, capacity: 400 };
-  });
+  const [occupancyData, setOccupancyData] = useState({ use: 0, capacity: 400 });
 
   const checkIfOpen = () => {
     const day = currentTime.getDay();
@@ -131,6 +129,26 @@ export default function menu() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    async function loadStoredData() {
+      try {
+        const cached = await AsyncStorage.getItem('johnjay_occupancy');
+        if (cached) {
+          setOccupancyData(JSON.parse(cached));
+        }
+      } catch (error) {
+        console.error('Error loading stored data:', error);
+      }
+    }
+    loadStoredData();
+  }, []);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerShown: false,
+    });
+  }, [navigation]);
+
   const getCurrentMealPeriod = () => {
     const hour = currentTime.getHours();
     const minutes = currentTime.getMinutes();
@@ -219,27 +237,27 @@ export default function menu() {
     }
 
     return (
-      <TouchableOpacity style={styles.diningButton}>
+      <View style={styles.diningButton}>
         <Text style={[styles.capacityText, {color: barColor}]}>
-          {use || 0}/{capacity || 0}
+          {`${use || 0}/${capacity || 0}`}
         </Text>
         <View style={styles.progressBarContainer}>
-          <View style={[
-            styles.progressBarFill, 
-            { 
-              width: `${Math.min(fillPercentage * 100, 100)}%`, 
-              backgroundColor: barColor 
-            }
-          ]} />
+          <View 
+            style={[
+              styles.progressBarFill, 
+              { 
+                width: `${Math.min(fillPercentage * 100, 100)}%`, 
+                backgroundColor: barColor 
+              }
+            ]} 
+          />
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
  
   return (
-  
-  <View style = {styles.body}>
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView> 
         <View style={styles.header}>
             <ImageBackground source= {require("../assets/images/johnjay.jpg")} resizeMode="cover" style={styles.imageBackground}>
@@ -248,7 +266,16 @@ export default function menu() {
                 <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
               </TouchableOpacity>              
               <View  style = {styles.topheader}>
-                  <View style={[styles.openable, isOpen === "CLOSED" && styles.closedBadge]}> <Text style={[styles.openabletext, isOpen === "CLOSED" && styles.closedText]}>{isOpen}</Text></View>
+                  <View style={[styles.openable, isOpen === "CLOSED" && styles.closedBadge]}>
+                    <Text 
+                      style={[
+                        styles.openabletext, 
+                        isOpen === "CLOSED" && styles.closedText
+                      ]}
+                    >
+                      {isOpen}
+                    </Text>
+                  </View>
                   <Text style={styles.title}>{clickedDining}</Text>
               </View>
               <View style = {styles.bottomheader}>
@@ -309,12 +336,12 @@ export default function menu() {
                           <View style={styles.menuItemLeft}>
                             <Text style={styles.menuItemName}>{item.foodName}</Text>
                             {item.nutrition?.calories && (
-                              <Text style={styles.calories}>{item.nutrition.calories} cal</Text>
+                              <Text style={styles.calories}>{`${item.nutrition.calories} cal`}</Text>
                             )}
                             {item.contains && 
                              item.contains.replace(/[{}"\[\]]/g, '').split(',').filter(Boolean).length > 0 && (
                               <Text style={styles.allergens}>
-                                Contains: {item.contains.replace(/[{}]/g, '').split(',').filter(Boolean).join(', ')}
+                                {`Contains: ${item.contains.replace(/[{}]/g, '').split(',').filter(Boolean).join(', ')}`}
                               </Text>
                             )}
                           </View>
@@ -363,8 +390,7 @@ export default function menu() {
       </ScrollView>
       
    
-    </View>
-  </View>
+    </SafeAreaView>
   );
  
 }

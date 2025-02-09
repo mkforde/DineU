@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
+import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions, SafeAreaView } from "react-native";
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Add hours check function
 function checkFerrisHours() {
@@ -15,10 +16,7 @@ export default function menu() {
   const navigation = useNavigation(); // Initialize navigation
   const [menuItems, setMenuItems] = useState({});
   const [menuLoading, setMenuLoading] = useState(true);
-  const [occupancyData, setOccupancyData] = useState(() => {
-    const cached = localStorage.getItem('ferris_occupancy');
-    return cached ? JSON.parse(cached) : { use: 0, capacity: 363 };
-  });
+  const [occupancyData, setOccupancyData] = useState({ use: 0, capacity: 363 });
   const [isOpen, setIsOpen] = useState(checkFerrisHours());
   const timing = "7:30 AM - 8:00 PM";
 
@@ -150,6 +148,21 @@ export default function menu() {
     return () => clearInterval(interval);
   }, []);
 
+  // Add useEffect to load stored data
+  useEffect(() => {
+    async function loadStoredData() {
+      try {
+        const cached = await AsyncStorage.getItem('ferris_occupancy');
+        if (cached) {
+          setOccupancyData(JSON.parse(cached));
+        }
+      } catch (error) {
+        console.error('Error loading stored data:', error);
+      }
+    }
+    loadStoredData();
+  }, []);
+
   // Menu rendering function
   const renderMenu = () => {
     if (menuLoading) {
@@ -248,9 +261,7 @@ export default function menu() {
    };
  
   return (
-  
-  <View style = {styles.body}>
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <ScrollView> 
         <View style={styles.header}>
             <ImageBackground source= {require("../assets/images/ferris.jpg")} resizeMode="cover" style={styles.imageBackground}>
@@ -320,8 +331,7 @@ export default function menu() {
       </ScrollView>
       
    
-    </View>
-  </View>
+    </SafeAreaView>
   );
  
 }

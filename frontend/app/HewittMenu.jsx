@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
+import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions, SafeAreaView } from "react-native";
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Add this function to check Hewitt hours
 function checkHewittHours() {
@@ -15,10 +16,7 @@ export default function menu() {
   const navigation = useNavigation(); // Initialize navigation
   const [menuItems, setMenuItems] = useState({});
   const [menuLoading, setMenuLoading] = useState(true);
-  const [occupancyData, setOccupancyData] = useState(() => {
-    const cached = localStorage.getItem('hewitt_occupancy');
-    return cached ? JSON.parse(cached) : { use: 0, capacity: 198 };
-  });
+  const [occupancyData, setOccupancyData] = useState({ use: 0, capacity: 198 });
   const [isOpen, setIsOpen] = useState(checkHewittHours());
 
   const reviews = [
@@ -104,6 +102,21 @@ export default function menu() {
        </TouchableOpacity>
      );
    };
+
+  // Add useEffect to load stored data
+  useEffect(() => {
+    async function loadStoredData() {
+      try {
+        const cached = await AsyncStorage.getItem('hewitt_occupancy');
+        if (cached) {
+          setOccupancyData(JSON.parse(cached));
+        }
+      } catch (error) {
+        console.error('Error loading stored data:', error);
+      }
+    }
+    loadStoredData();
+  }, []);
 
   // Fetch menu and nutrition data from cache
   useEffect(() => {
@@ -245,10 +258,8 @@ export default function menu() {
   };
 
   return (
-  
-  <View style = {styles.body}>
-    <View style={styles.container}>
-      <ScrollView> 
+    <SafeAreaView style={styles.container}>
+      <ScrollView>
         <View style={styles.header}>
             <ImageBackground source= {require("../assets/images/hewitt.jpg")} resizeMode="cover" style={styles.imageBackground}>
               <View style={styles.overlay} />
@@ -317,12 +328,8 @@ export default function menu() {
        
 
       </ScrollView>
-      
-   
-    </View>
-  </View>
+    </SafeAreaView>
   );
- 
 }
 
 

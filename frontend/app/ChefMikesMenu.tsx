@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions } from "react-native";
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function checkChefMikesHours() {
   const now = new Date();
@@ -14,10 +15,7 @@ export default function menu() {
   const navigation = useNavigation();
   const [menuItems, setMenuItems] = useState({});
   const [menuLoading, setMenuLoading] = useState(true);
-  const [occupancyData, setOccupancyData] = useState(() => {
-    const cached = localStorage.getItem('chefmikes_occupancy');
-    return cached ? JSON.parse(cached) : { use: 0, capacity: 120 };
-  });
+  const [occupancyData, setOccupancyData] = useState<OccupancyData>({ use: 0, capacity: 120 });
   const [isOpen, setIsOpen] = useState(checkChefMikesHours());
   const timing = "11:00 AM - 8:00 PM";
 
@@ -100,6 +98,20 @@ export default function menu() {
     }, 60000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    async function loadStoredData() {
+        try {
+            const cached = await AsyncStorage.getItem('chefmikes_occupancy');
+            if (cached) {
+                setOccupancyData(JSON.parse(cached));
+            }
+        } catch (error) {
+            console.error('Error loading stored data:', error);
+        }
+    }
+    loadStoredData();
   }, []);
 
   // Menu rendering function

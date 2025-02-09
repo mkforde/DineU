@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions } from "react-native";
+import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions, SafeAreaView } from "react-native";
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function checkDianasHours() {
   const now = new Date();
@@ -14,10 +15,7 @@ export default function menu() {
   const navigation = useNavigation();
   const [menuItems, setMenuItems] = useState({});
   const [menuLoading, setMenuLoading] = useState(true);
-  const [occupancyData, setOccupancyData] = useState(() => {
-    const cached = localStorage.getItem('dianas_occupancy');
-    return cached ? JSON.parse(cached) : { use: 0, capacity: 180 };
-  });
+  const [occupancyData, setOccupancyData] = useState({ use: 0, capacity: 180 });
   const [isOpen, setIsOpen] = useState(checkDianasHours());
   const timing = "11:00 AM - 8:00 PM";
 
@@ -102,6 +100,27 @@ export default function menu() {
     return () => clearInterval(interval);
   }, []);
 
+  // Add useEffect to load stored data
+  useEffect(() => {
+    async function loadStoredData() {
+      try {
+        const cached = await AsyncStorage.getItem('dianas_occupancy');
+        if (cached) {
+          setOccupancyData(JSON.parse(cached));
+        }
+      } catch (error) {
+        console.error('Error loading stored data:', error);
+      }
+    }
+    loadStoredData();
+  }, []);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerShown: false,
+    });
+  }, [navigation]);
+
   // Menu rendering function
   const renderMenu = () => {
     if (menuLoading) {
@@ -161,43 +180,41 @@ export default function menu() {
   };
 
   return (
-    <View style={styles.body}>
-      <View style={styles.container}>
-        <ScrollView>
-          <View style={styles.header}>
-            <ImageBackground source={require("../assets/images/dianas.jpg")} resizeMode="cover" style={styles.imageBackground}>
-              <View style={styles.overlay} />
-              <TouchableOpacity style={styles.imgback} onPress={() => navigation.goBack()}>
-                <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
-              </TouchableOpacity>              
-              <View style={styles.topheader}>
-                <View style={styles.openable}>
-                  <Text style={styles.openabletext}>{isOpen ? "OPEN" : "CLOSED"}</Text>
-                </View>
-                <Text style={styles.title}>Diana's</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView>
+        <View style={styles.header}>
+          <ImageBackground source={require("../assets/images/dianas.jpg")} resizeMode="cover" style={styles.imageBackground}>
+            <View style={styles.overlay} />
+            <TouchableOpacity style={styles.imgback} onPress={() => navigation.goBack()}>
+              <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
+            </TouchableOpacity>              
+            <View style={styles.topheader}>
+              <View style={styles.openable}>
+                <Text style={styles.openabletext}>{isOpen ? "OPEN" : "CLOSED"}</Text>
               </View>
-              <View style={styles.bottomheader}>
-                <Text style={styles.subtitle}>{timing}</Text>
-              </View>
-            </ImageBackground>
-          </View>
+              <Text style={styles.title}>Diana's</Text>
+            </View>
+            <View style={styles.bottomheader}>
+              <Text style={styles.subtitle}>{timing}</Text>
+            </View>
+          </ImageBackground>
+        </View>
 
-          {isOpen === "CLOSED" ? (
-            <View style={styles.closedContainer}>
-              <Text style={styles.closedMessage}>
-                Diana Center Cafe is currently closed.{'\n'}
-                Please check back during operating hours:{'\n'}
-                {timing}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.menuContainer}>
-              {renderMenu()}
-            </View>
-          )}
-        </ScrollView>
-      </View>
-    </View>
+        {isOpen === "CLOSED" ? (
+          <View style={styles.closedContainer}>
+            <Text style={styles.closedMessage}>
+              Diana Center Cafe is currently closed.{'\n'}
+              Please check back during operating hours:{'\n'}
+              {timing}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.menuContainer}>
+            {renderMenu()}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

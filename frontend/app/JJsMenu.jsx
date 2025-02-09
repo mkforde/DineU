@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
+import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions, SafeAreaView } from "react-native";
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Add this function before the component
 function checkJJsHours() {
@@ -18,10 +19,7 @@ export default function menu() {
   const navigation = useNavigation(); // Initialize navigation
   const [menuItems, setMenuItems] = useState({});
   const [menuLoading, setMenuLoading] = useState(true);
-  const [occupancyData, setOccupancyData] = useState(() => {
-    const cached = localStorage.getItem('jjs_occupancy');
-    return cached ? JSON.parse(cached) : { use: 0, capacity: 198 };
-  });
+  const [occupancyData, setOccupancyData] = useState({ use: 0, capacity: 198 });
   const [isOpen, setIsOpen] = useState(checkJJsHours());
   const timing = "12:00 PM - 10:00 AM";
 
@@ -112,6 +110,21 @@ export default function menu() {
     }, 60000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  // Add useEffect to load stored data
+  useEffect(() => {
+    async function loadStoredData() {
+      try {
+        const cached = await AsyncStorage.getItem('jjs_occupancy');
+        if (cached) {
+          setOccupancyData(JSON.parse(cached));
+        }
+      } catch (error) {
+        console.error('Error loading stored data:', error);
+      }
+    }
+    loadStoredData();
   }, []);
 
   const reviews = [
@@ -240,99 +253,101 @@ export default function menu() {
   };
 
   return (
-  
-  <View style={styles.body}>
-    <View style={styles.container}>
-      <ScrollView> 
-        <View style={styles.header}>
-            <ImageBackground source={require("../assets/images/jjs.jpg")} resizeMode="cover" style={styles.imageBackground}>
-              <View style={styles.overlay} />
-              <TouchableOpacity style={styles.imgback} onPress={() => navigation.goBack()}>
-                <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
-              </TouchableOpacity>              
-              <View style={styles.topheader}>
-                <View style={styles.openable}>
-                  <Text style={styles.openabletext}>{isOpen ? 'OPEN' : 'CLOSED'}</Text>
-                </View>
-                <Text style={styles.title}>{clickedDining}</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView>
+        <View style={styles.body}>
+          <View style={styles.container}>
+            <ScrollView> 
+              <View style={styles.header}>
+                  <ImageBackground source={require("../assets/images/jjs.jpg")} resizeMode="cover" style={styles.imageBackground}>
+                    <View style={styles.overlay} />
+                    <TouchableOpacity style={styles.imgback} onPress={() => navigation.goBack()}>
+                      <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
+                    </TouchableOpacity>              
+                    <View style={styles.topheader}>
+                      <View style={styles.openable}>
+                        <Text style={styles.openabletext}>{isOpen ? 'OPEN' : 'CLOSED'}</Text>
+                      </View>
+                      <Text style={styles.title}>{clickedDining}</Text>
+                    </View>
+                    <View style={styles.bottomheader}>
+                      <Text style={styles.subtitle}>{timing}</Text>
+                    </View>
+                  </ImageBackground>
               </View>
-              <View style={styles.bottomheader}>
-                <Text style={styles.subtitle}>{timing}</Text>
-              </View>
-            </ImageBackground>
-        </View>
 
-        {isOpen === "CLOSED" ? (
-          <View style={styles.closedContainer}>
-            <Text style={styles.closedMessage}>
-              JJ's Place is currently closed.{'\n'}
-              Please check back during operating hours:{'\n'}
-              {timing}
-            </Text>
-          </View>
-        ) : (
-          <View> 
-            <View style = {styles.stats}>
-              <View style = {styles.stat}>
-                <View style = {styles.nutri}>
-                  <Text style = {styles.Stitle}>Nutri-score</Text>
-                  <Image source={require("../assets/images/tooltip.png")} />
-                </View>
-                <View style = {styles.nutri}>
-                  <Text style={styles.Stitle}>Current Seating Capacity</Text>
-                  <Image source={require("../assets/images/tooltip.png")} />
-                </View>
-              </View>
-              <View style={styles.imageM}>
-                <Image source={require("../assets/images/NutriB.png")} />
-                <View style={styles.capacityContainer}>
-                  <Text style={[styles.capacityText, { color: '#423934' }]}>
-                    {occupancyData.use}/{occupancyData.capacity}
+              {isOpen === "CLOSED" ? (
+                <View style={styles.closedContainer}>
+                  <Text style={styles.closedMessage}>
+                    JJ's Place is currently closed.{'\n'}
+                    Please check back during operating hours:{'\n'}
+                    {timing}
                   </Text>
-                  <View style={styles.progressBarContainer}>
-                    <View style={[
-                      styles.progressBarFill, 
-                      { 
-                        width: `${(occupancyData.use / occupancyData.capacity) * 100}%`,
-                        backgroundColor: occupancyData.use / occupancyData.capacity < 0.25 ? "#9AD94B" :
-                                       occupancyData.use / occupancyData.capacity <= 0.5 ? "#FFC632" :
-                                       occupancyData.use / occupancyData.capacity <= 0.75 ? "#E15C11" : 
-                                       "#E11111"
-                      }
-                    ]} />
+                </View>
+              ) : (
+                <View> 
+                  <View style = {styles.stats}>
+                    <View style = {styles.stat}>
+                      <View style = {styles.nutri}>
+                        <Text style = {styles.Stitle}>Nutri-score</Text>
+                        <Image source={require("../assets/images/tooltip.png")} />
+                      </View>
+                      <View style = {styles.nutri}>
+                        <Text style={styles.Stitle}>Current Seating Capacity</Text>
+                        <Image source={require("../assets/images/tooltip.png")} />
+                      </View>
+                    </View>
+                    <View style={styles.imageM}>
+                      <Image source={require("../assets/images/NutriB.png")} />
+                      <View style={styles.capacityContainer}>
+                        <Text style={[styles.capacityText, { color: '#423934' }]}>
+                          {occupancyData.use}/{occupancyData.capacity}
+                        </Text>
+                        <View style={styles.progressBarContainer}>
+                          <View style={[
+                            styles.progressBarFill, 
+                            { 
+                              width: `${(occupancyData.use / occupancyData.capacity) * 100}%`,
+                              backgroundColor: occupancyData.use / occupancyData.capacity < 0.25 ? "#9AD94B" :
+                                             occupancyData.use / occupancyData.capacity <= 0.5 ? "#FFC632" :
+                                             occupancyData.use / occupancyData.capacity <= 0.75 ? "#E15C11" : 
+                                             "#E11111"
+                            }
+                          ]} />
+                        </View>
+                      </View>
+                    </View>
                   </View>
+
+                  <View  style={styles.menuTitle}>
+                    <Text style={styles.titleM}>Menu</Text>
+                  </View>
+                  {renderMenu()}
+                  <View style={styles.reviewsContainer}>
+                    <Text style={styles.sectionTitle}>Reviews</Text>
+                    {reviews.map((review, index) => (
+                      <View key={index} style={styles.reviewItem}>
+                        <Text style={styles.reviewText}>
+                          <Text style={styles.bold}>{review.name}</Text>: {review.comment}
+                        </Text>
+                        <View style={styles.starContainer}>{renderStars(review.rating)}</View>
+                      </View>
+                    ))}
+                  </View>
+
+
                 </View>
-              </View>
-            </View>
+              )}
+             
 
-            <View  style={styles.menuTitle}>
-              <Text style={styles.titleM}>Menu</Text>
-            </View>
-            {renderMenu()}
-            <View style={styles.reviewsContainer}>
-              <Text style={styles.sectionTitle}>Reviews</Text>
-              {reviews.map((review, index) => (
-                <View key={index} style={styles.reviewItem}>
-                  <Text style={styles.reviewText}>
-                    <Text style={styles.bold}>{review.name}</Text>: {review.comment}
-                  </Text>
-                  <View style={styles.starContainer}>{renderStars(review.rating)}</View>
-                </View>
-              ))}
-            </View>
-
-
+            </ScrollView>
+            
+         
           </View>
-        )}
-       
-
+        </View>
       </ScrollView>
-      
-   
-    </View>
-  </View>
+    </SafeAreaView>
   );
- 
 }
 
 
@@ -384,7 +399,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FDFECC", // Light yellow background
     alignContent: "center",
     width: 393,
-    paddingTop: 47, // Add top padding for iPhone bezel
   }, 
   
   topheader:{
