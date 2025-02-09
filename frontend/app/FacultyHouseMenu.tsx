@@ -1,72 +1,39 @@
-import React from "react";
-import { useState } from 'react';
+import React, { useState, useEffect } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
 import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
-
-
-
-
+// Add this function to check Faculty House hours
+function checkFacultyHouseHours() {
+  const now = new Date();
+  const time = now.getHours() * 100 + now.getMinutes();
+  // Add Faculty House hours logic here
+  return true; // Modify based on actual hours
+}
 
 export default function menu() {
   const navigation = useNavigation(); // Initialize navigation
+  const [menuItems, setMenuItems] = useState({});
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [occupancyData, setOccupancyData] = useState(() => {
+    const cached = localStorage.getItem('facultyhouse_occupancy');
+    return cached ? JSON.parse(cached) : { use: 0, capacity: 60 };
+  });
+  const [isOpen, setIsOpen] = useState(checkFacultyHouseHours());
 
-  const menuItems = [
-    { 
-      name: "Grilled Chicken", 
-      calories: 350, 
-      dietary: ["Halal", "GlutenFree"] 
-    },
-    { 
-      name: "Vegan Salad", 
-      calories: 200, 
-      dietary: ["Vegan", "GlutenFree"] 
-    },
-    { 
-      name: "Cheeseburger", 
-      calories: 550, 
-      dietary: ["Vegan"] 
-    },
-  ];
   const reviews = [
     { name: "Alice", rating: 5, comment: "Delicious! Highly recommend." },
     { name: "John", rating: 4, comment: "Tasty but a bit salty." },
-    { name: "Emma", rating: 3, comment: "Average, not the best I’ve had." },
-    { name: "Mike", rating: 2, comment: "Not great, wouldn’t order again." },
+    { name: "Emma", rating: 3, comment: "Average, not the best I've had." },
+    { name: "Mike", rating: 2, comment: "Not great, wouldn't order again." },
     { name: "Chris", rating: 1, comment: "Terrible. Avoid at all costs." },
   ];
   
-  const renderStars = (rating) => {
-    const totalStars = 5;
-    let stars = [];
-  
-    for (let i = 0; i < totalStars; i++) {
-      if (i < rating) {
-        stars.push(
-          <Image 
-            key={i} 
-            source={require("../assets/images/star_gold.png")} // Gold Star
-            style={styles.starIcon} 
-          />
-        );
-      } else {
-        stars.push(
-          <Image 
-            key={i} 
-            source={require("../assets/images/star_gray.png")} // Gray Star
-            style={styles.starIcon} 
-          />
-        );
-      }
-    }
-    return stars;
-  };
-  
-  
-  const dietIcons = {
-    Halal: require("../assets/images/Halal.png"),
-    Vegan: require("../assets/images/Vegan.png"),
-    GlutenFree: require("../assets/images/Gluten Free.png"),
+  const dietIcons: { [key: string]: any } = {
+    'Vegan': require('../assets/images/Vegan.png'),
+    'Vegetarian': require('../assets/images/Vegan.png'),
+    'Halal': require('../assets/images/Halal.png'),
+    'Gluten Free': require('../assets/images/Gluten_Free.png')
   };
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(null);
@@ -78,40 +45,198 @@ export default function menu() {
 
   const name = "Alice";
   const clickedDining = "Faculty House";
-  const isOpen = "OPEN";
   const { height } = useWindowDimensions(); // Auto-updating height
   const timing = "{Insert time}";
 
-  const DiningButton = ({ title, image, use, capacity }) => {
-     const fillPercentage = use / capacity;
-     const [selectedValue, setSelectedValue] = useState(null);
+  // Fetch menu and nutrition data from cache
+  useEffect(() => {
+    async function fetchMenuData() {
+      try {
+        setMenuLoading(true);
+        
+        // Get menu items from cache
+        const { data: menuData, error: menuError } = await supabase
+          .from('menu_cache')
+          .select('*')
+          .eq('diningHall', 'Faculty House')
+          .order('foodType');
 
-     // Determine bar color
-     let barColor;
-     if (fillPercentage < 0.25) {
-       barColor = "#9AD94B";
-     } else if (fillPercentage <= 0.5) {
-       barColor = "#FFC632";
-     } else if (fillPercentage <= 0.75) {
-       barColor = "#E15C11";
-     } else {
-       barColor = "#E11111";
-     }
- 
-     return (
-       <TouchableOpacity style={styles.diningButton}>
-       
-          <Text style={[styles.capacityText, {color: barColor}]}>{use}/{capacity}</Text>
- 
-           {/* Progress Bar */}
-           <View style={styles.progressBarContainer}>
-             <View style={[styles.progressBarFill, { width: `${fillPercentage * 100}%`, backgroundColor: barColor }]} />
-           </View>
+        if (menuError) {
+          console.error('Error fetching menu:', menuError);
+          return;
+        }
 
-       </TouchableOpacity>
-     );
-   };
- 
+        // Get nutrition data from cache
+        const { data: nutritionData, error: nutritionError } = await supabase
+          .from('nutrition_cache')
+          .select('*')
+          .eq('dining_hall', 'Faculty House');
+
+        if (nutritionError) {
+          console.error('Error fetching nutrition:', nutritionError);
+        }
+
+        // Organize menu items by meal type and food type
+        const organizedMenu = menuData.reduce((acc: any, item: any) => {
+          if (!acc[item.mealType]) {
+            acc[item.mealType] = {};
+          }
+          
+          if (!acc[item.mealType][item.foodType]) {
+            acc[item.mealType][item.foodType] = [];
+          }
+
+          const nutrition = nutritionData?.find(n => n.meal_name === item.foodName);
+
+          acc[item.mealType][item.foodType].push({
+            ...item,
+            dietaryPreferences: typeof item.dietaryPreferences === 'string' 
+              ? item.dietaryPreferences 
+              : JSON.stringify(item.dietaryPreferences),
+            contains: typeof item.contains === 'string'
+              ? item.contains
+              : JSON.stringify(item.contains),
+            nutrition: nutrition?.nutrition_data || {}
+          });
+
+          return acc;
+        }, {});
+
+        setMenuItems(organizedMenu);
+        setMenuLoading(false);
+      } catch (error) {
+        console.error('Error loading menu data:', error);
+        setMenuLoading(false);
+      }
+    }
+
+    fetchMenuData();
+  }, []);
+
+  // Check open status periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsOpen(checkFacultyHouseHours());
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const renderStars = (rating: number) => {
+    const totalStars = 5;
+    let stars = [];
+    
+    for (let i = 0; i < totalStars; i++) {
+      if (i < rating) {
+        stars.push(
+          <Image 
+            key={i} 
+            source={require("../assets/images/star_gold.png")}
+            style={styles.starIcon as any} 
+          />
+        );
+      } else {
+        stars.push(
+          <Image 
+            key={i} 
+            source={require("../assets/images/star_gray.png")}
+            style={styles.starIcon as any} 
+          />
+        );
+      }
+    }
+    return stars;
+  };
+
+  const DiningButton = ({ title, image, use, capacity }: { title: string, image: any, use: number, capacity: number }) => {
+    const fillPercentage = use / capacity;
+
+    let barColor;
+    if (fillPercentage < 0.25) {
+      barColor = "#9AD94B";
+    } else if (fillPercentage <= 0.5) {
+      barColor = "#FFC632";
+    } else if (fillPercentage <= 0.75) {
+      barColor = "#E15C11";
+    } else {
+      barColor = "#E11111";
+    }
+
+    return (
+      <TouchableOpacity style={styles.diningButton}>
+        <Text style={[styles.capacityText, {color: barColor}]}>{use}/{capacity}</Text>
+        <View style={styles.progressBarContainer}>
+          <View style={[styles.progressBarFill, { width: `${fillPercentage * 100}%`, backgroundColor: barColor }]} />
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Add renderMenu function
+  const renderMenu = () => {
+    if (menuLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading menu...</Text>
+        </View>
+      );
+    }
+
+    // Combine all items across meal types and organize by food type
+    const foodTypes: { [key: string]: any[] } = {};
+    Object.values(menuItems).forEach(mealPeriod => {
+      Object.entries(mealPeriod).forEach(([foodType, items]) => {
+        if (!foodTypes[foodType]) {
+          foodTypes[foodType] = [];
+        }
+        foodTypes[foodType].push(...items);
+      });
+    });
+
+    return Object.entries(foodTypes).map(([foodType, items]) => (
+      <View key={foodType} style={styles.foodTypeSection}>
+        <Text style={styles.foodTypeTitle}>{foodType}</Text>
+        
+        {items.map((item: any, index: number) => (
+          <View key={index} style={styles.menuItem}>
+            <View style={styles.menuItemLeft}>
+              <Text style={styles.menuItemName}>{item.foodName}</Text>
+              {item.nutrition?.calories && (
+                <Text style={styles.calories}>{item.nutrition.calories} cal</Text>
+              )}
+              {item.contains && 
+               item.contains.replace(/[{}"\[\]]/g, '').split(',').filter(Boolean).length > 0 && (
+                <Text style={styles.allergens}>
+                  Contains: {item.contains.replace(/[{}]/g, '').split(',').filter(Boolean).join(', ')}
+                </Text>
+              )}
+            </View>
+            <View style={styles.dietaryIcons}>
+              {item.dietaryPreferences && 
+                (typeof item.dietaryPreferences === 'string' 
+                  ? item.dietaryPreferences
+                  : JSON.stringify(item.dietaryPreferences))
+                  .replace(/[{}"\[\]]/g, '')
+                  .split(',')
+                  .filter(pref => pref && pref.trim().length > 0)
+                  .map((diet: string, i: number) => {
+                    const cleanDiet = diet.trim();
+                    return dietIcons[cleanDiet] && (
+                      <Image 
+                        key={i} 
+                        source={dietIcons[cleanDiet]} 
+                        style={styles.dietaryIcon as any} 
+                      />
+                    );
+                  })
+              }
+            </View>
+          </View>
+        ))}
+      </View>
+    ));
+  };
+
   return (
   
   <View style = {styles.body}>
@@ -124,7 +249,7 @@ export default function menu() {
                 <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
               </TouchableOpacity>              
               <View  style = {styles.topheader}>
-                  <View style = {styles.openable}> <Text style={styles.openabletext}>{isOpen}</Text></View>
+                  <View style = {styles.openable}> <Text style={styles.openabletext}>{isOpen ? "OPEN" : "CLOSED"}</Text></View>
                   <Text style={styles.title}>{clickedDining}</Text>
               </View>
               <View style = {styles.bottomheader}>
@@ -148,7 +273,7 @@ export default function menu() {
             </View>
             <View style = {styles.imageM}>
               <Image source={require("../assets/images/NutriB.png")} />
-              <DiningButton title="Fac's" image={require("../assets/images/fac.jpg")} use={30} capacity = {60}  />
+              <DiningButton title="Fac's" image={require("../assets/images/fac.jpg")} use={occupancyData.use} capacity = {occupancyData.capacity}  />
             </View>
           </View>
 
@@ -156,23 +281,7 @@ export default function menu() {
             <Text style={styles.titleM}>Menu</Text>
           </View>
           <View style={styles.menuContainer}>
-            {menuItems.map((item, index) => (
-              <View key={index} style={styles.menuItem}>
-                <View>
-                  <Text style={styles.menuItemName}>{item.name}</Text>
-                  <Text style={styles.menuItemCalories}>{item.calories} kcal</Text>
-                </View>
-                <View style={styles.dietaryIcons}>
-                  {item.dietary.map((diet, i) => (
-                    <Image 
-                      key={i} 
-                      source={dietIcons[diet]} 
-                      style={styles.dietaryIcon} 
-                    />
-                  ))}
-                </View>
-              </View>
-            ))}
+            {renderMenu()}
           </View>
           <View style={styles.reviewsContainer}>
             <Text style={styles.sectionTitle}>Reviews</Text>
@@ -411,5 +520,41 @@ overlay: {
     width: 18,
     height: 18,
     marginRight: 3,
-  }
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#423934",
+  },
+  foodTypeSection: {
+    marginBottom: 20,
+  },
+  foodTypeTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#423934',
+    marginBottom: 10,
+    paddingBottom: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  menuItemLeft: {
+    flex: 1,
+  },
+  allergens: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  calories: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
 });

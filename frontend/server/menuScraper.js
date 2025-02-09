@@ -219,9 +219,9 @@ async function scrapeMenuItems(page, mealType) {
 // Separate the scraping logic from the response handling
 async function scrapeMenuData() {
   const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
 
   try {
     const menuData = {
@@ -307,14 +307,14 @@ async function scrapeMenuData() {
     }
 
     return {
-      success: true,
+      success: true, 
       data: menuData,
       timestamp: new Date().toISOString()
     };
   } catch (error) {
     console.error('Scraping error:', error);
     return {
-      success: false,
+      success: false, 
       error: error.message || 'Failed to fetch menu data',
       timestamp: new Date().toISOString()
     };
@@ -325,64 +325,57 @@ async function scrapeMenuData() {
   }
 }
 
-// Modify getMenuData to check Supabase cache first
-async function getMenuData(supabase) {
+// Add force parameter to bypass cache
+async function getMenuData(supabase, forceFresh = false) {
   const now = Date.now();
   
-  // First check Supabase cache
-  if (supabase) {
-    console.log('Checking Supabase menu cache...');
-    const { data: cachedMenu, error } = await supabase
-      .from('menu_cache')
-      .select('*')
-      .gt('last_updated', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+  // Skip cache check if forceFresh is true
+  if (!forceFresh) {
+    // First check Supabase cache
+    if (supabase) {
+      console.log('Checking Supabase menu cache...');
+      const { data: cachedMenu, error } = await supabase
+        .from('menu_cache')
+        .select('*')
+        .gt('last_updated', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
-    if (error) {
-      console.error('Menu cache fetch error:', error);
-    } else if (cachedMenu && cachedMenu.length > 0) {
-      console.log(`Found ${cachedMenu.length} items in Supabase cache`);
-      // Transform cached data back into menu format
-      const menuData = {
-        success: true,
-        data: cachedMenu.reduce((acc, item) => {
-          if (!acc[item.mealType]) acc[item.mealType] = [];
-          acc[item.mealType].push({
-            mealType: item.mealType,
-            diningHall: item.diningHall,
-            hours: item.hours,
-            foodType: item.foodType,
-            foodName: item.foodName,
-            dietaryPreferences: item.dietaryPreferences,
-            contains: item.contains,
-            nutritionalInfo: item.nutritionalInfo
-          });
-          return acc;
-        }, {}),
-        timestamp: new Date().toISOString()
-      };
-      return menuData;
+      if (!error && cachedMenu && cachedMenu.length > 0) {
+        console.log(`Found ${cachedMenu.length} items in Supabase cache`);
+        // Transform cached data back into menu format
+        const menuData = {
+          success: true,
+          data: cachedMenu.reduce((acc, item) => {
+            if (!acc[item.mealType]) acc[item.mealType] = [];
+            acc[item.mealType].push({
+              mealType: item.mealType,
+              diningHall: item.diningHall,
+              hours: item.hours,
+              foodType: item.foodType,
+              foodName: item.foodName,
+              dietaryPreferences: item.dietaryPreferences,
+              contains: item.contains,
+              nutritionalInfo: item.nutritionalInfo
+            });
+            return acc;
+          }, {}),
+          timestamp: new Date().toISOString()
+        };
+        return menuData;
+      }
     }
   }
 
-  // Then check memory cache
-  if (scrapedMenuData && lastScrapeTime && (now - lastScrapeTime < SCRAPE_INTERVAL)) {
-    console.log('Using memory cached menu data');
-    return scrapedMenuData;
-  }
-
-  // Only scrape if we need to
-  console.log('No valid cache found, scraping fresh menu data');
+  // Scrape fresh data
+  console.log('Scraping fresh menu data...');
   const freshData = await scrapeMenuData();
   if (freshData.success) {
-    scrapedMenuData = freshData;
-    lastScrapeTime = now;
-    console.log('Menu data cached in memory at:', new Date(lastScrapeTime).toISOString());
+    console.log('Fresh menu data scraped successfully');
   }
   return freshData;
 }
 
-// Update the menu endpoint handler to use getMenuData
-router.get('/', async (req, res) => {
+// Define the base route
+router.get('/menu', async (req, res) => {
   try {
     const menuData = await getMenuData(req.supabase);
     
@@ -603,4 +596,7 @@ router.get('/recommend', async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = {
+  router,
+  getMenuData
+}; 
