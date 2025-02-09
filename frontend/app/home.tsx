@@ -12,6 +12,8 @@ interface DiningButtonProps {
   capacity: number;
 }
 
+type LocationKey = 'chefMikes' | 'johnJay' | 'jjs' | 'ferris';
+
 function CustomBottomNav() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
@@ -69,6 +71,72 @@ export default function WelcomeScreen() {
   const dataFetched = useRef(false);
   const recommendedDining = "John Jay";
   const { height } = useWindowDimensions();
+  const [jjsData, setJjsData] = useState(() => {
+    const cached = localStorage.getItem('jjs_occupancy');
+    return cached ? JSON.parse(cached) : { use: null, capacity: 198 };
+  });
+  const [johnJayData, setJohnJayData] = useState(() => {
+    const cached = localStorage.getItem('johnjay_occupancy');
+    return cached ? JSON.parse(cached) : { use: null, capacity: 400 };
+  });
+  const [chefMikesData, setChefMikesData] = useState(() => {
+    const cached = localStorage.getItem('chefmikes_occupancy');
+    return cached ? JSON.parse(cached) : { use: null, capacity: 171 };
+  });
+  const [ferrisData, setFerrisData] = useState(() => {
+    const cached = localStorage.getItem('ferris_occupancy');
+    return cached ? JSON.parse(cached) : { use: null, capacity: 363 };
+  });
+
+  // Add cache ref for occupancy data
+  const occupancyCache = useRef({
+    chefMikes: { data: null, lastFetched: 0 },
+    johnJay: { data: null, lastFetched: 0 },
+    jjs: { data: null, lastFetched: 0 },
+    ferris: { data: null, lastFetched: 0 }
+  });
+
+  // Update fetchOccupancyWithCache to use localStorage
+  const fetchOccupancyWithCache = async (id: number, capacity: number, setData: Function, location: LocationKey) => {
+    const now = Date.now();
+    const cache = occupancyCache.current[location];
+
+    // Immediately show cached data if available
+    if (cache.data) {
+      setData(cache.data);
+    }
+
+    // Only fetch new data if cache is older than 30 seconds
+    if (!cache.data || now - cache.lastFetched > 30000) {
+      try {
+        const response = await fetch(`http://localhost:3000/api/occupancy/${id}`);
+        const occupancyData = await response.json();
+        
+        if (occupancyData.success && occupancyData.data) {
+          const percentage = occupancyData.data.percentageFull * 100;
+          const currentOccupancy = Math.round((percentage * capacity) / 100);
+          
+          const newData = {
+            use: currentOccupancy,
+            capacity: capacity
+          };
+
+          // Update both memory cache and localStorage
+          occupancyCache.current[location] = {
+            data: newData,
+            lastFetched: now
+          };
+          localStorage.setItem(location, JSON.stringify(newData));
+
+          if (!cache.data || cache.data.use !== newData.use) {
+            setData(newData);
+          }
+        }
+      } catch (error) {
+        console.error(`Error fetching ${location} occupancy:`, error);
+      }
+    }
+  };
 
   // Single useEffect for auth and profile management
   useEffect(() => {
@@ -122,6 +190,72 @@ export default function WelcomeScreen() {
     initializeUser();
   }, [router]);
 
+  // Update useEffects to pass storage keys
+  useEffect(() => {
+    const fetchChefMikes = () => fetchOccupancyWithCache(1339, 171, setChefMikesData, 'chefMikes');
+    fetchChefMikes();
+    const interval = setInterval(fetchChefMikes, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchJohnJay = () => fetchOccupancyWithCache(840, 400, setJohnJayData, 'johnJay');
+    fetchJohnJay();
+    const interval = setInterval(fetchJohnJay, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchJJs = () => fetchOccupancyWithCache(839, 198, setJjsData, 'jjs');
+    fetchJJs();
+    const interval = setInterval(fetchJJs, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchFerris = () => fetchOccupancyWithCache(835, 363, setFerrisData, 'ferris');
+    fetchFerris();
+    const interval = setInterval(fetchFerris, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Add Ferris hours check
+  const checkFerrisHours = (title: string) => {
+    if (title === "Ferris") {
+      const now = new Date();
+      const day = now.getDay();
+      const time = now.getHours() * 100 + now.getMinutes();
+
+      // Monday - Friday (7:30 AM - 8:00 PM)
+      if (day >= 1 && day <= 5) {
+        return time >= 730 && time <= 2000;
+      }
+      // Saturday (9:00 AM - 8:00 PM)
+      if (day === 6) {
+        return time >= 900 && time <= 2000;
+      }
+      // Sunday (10:00 AM - 2:00 PM, 4:00 PM - 8:00 PM)
+      if (day === 0) {
+        return (time >= 1000 && time <= 1400) || (time >= 1600 && time <= 2000);
+      }
+      return false;
+    }
+    return true;
+  };
+
+  // Add Faculty House hours check
+  const checkFacultyHours = (title: string) => {
+    if (title === "Faculty House") {
+      const now = new Date();
+      const day = now.getDay();
+      const time = now.getHours() * 100 + now.getMinutes();
+
+      // Monday - Wednesday (11:00 AM - 2:30 PM)
+      return (day >= 1 && day <= 3) && (time >= 1100 && time <= 1430);
+    }
+    return true;
+  };
+
   const handleExplorePress = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
@@ -133,9 +267,227 @@ export default function WelcomeScreen() {
 
   const DiningButton = ({ title, image, use, capacity }: DiningButtonProps) => {
     const navigation = useNavigation();
+    const isFoodTruck = title === "Johnnys" || title === "Fac Shack";
+    const isBarnard = title === "Dianas" || title === "Hewitt";
+    const isChefDons = title === "Chef Dons";
+
+    // Modify the checkChefHours function
+    const checkChefHours = (location: string) => {
+      const now = new Date();
+      const day = now.getDay();
+      const time = now.getHours() * 100 + now.getMinutes();
+
+      if (location === "Chef Mikes") {
+        // Monday-Friday (10:30 AM - 10:00 PM)
+        return (day >= 1 && day <= 5) && (time >= 1030 && time <= 2200);
+      }
+
+      if (location === "Chef Dons") {
+        // Monday-Friday (8:00 AM - 6:00 PM)
+        return (day >= 1 && day <= 5) && (time >= 800 && time <= 1800);
+      }
+      return false;
+    };
+
+    // Temporary modification for testing open hours display
+    const checkBarnardHours = (diningHall: string) => {
+      const now = new Date();
+      const day = now.getDay();
+      const time = now.getHours() * 100 + now.getMinutes();
+      
+      if (diningHall === "Dianas") {
+        if (day === 6) return false; // Closed on Saturday
+        if (day === 0) return time >= 1200 && time <= 2000; // Sunday hours
+        return time >= 900 && time <= 2359; // Weekday hours
+      }
+      
+      if (diningHall === "Hewitt") {
+        if (day === 0 || day === 6) { // Weekend hours
+          return (time >= 1030 && time <= 1500) || (time >= 1630 && time <= 2000);
+        }
+        // Weekday hours
+        return (time >= 730 && time <= 1000) || 
+               (time >= 1100 && time <= 1430) || 
+               (time >= 1630 && time <= 2000);
+      }
+      return false;
+    };
+
+    // Update the checkFoodTruckHours function
+    const checkFoodTruckHours = (truckName: string) => {
+      const now = new Date();
+      const day = now.getDay();
+      const time = now.getHours() * 100 + now.getMinutes();
+
+      if (truckName === "Johnnys") {
+        // Monday-Thursday lunch (11am-2pm)
+        if (day >= 1 && day <= 4 && time >= 1100 && time <= 1400) {
+          return true;
+        }
+        // Thursday-Saturday late night (7pm-11pm)
+        if ((day >= 4 && day <= 6) && time >= 1900 && time <= 2300) {
+          return true;
+        }
+        return false;
+      }
+
+      if (truckName === "Fac Shack") {
+        // Monday-Thursday (11am-7pm)
+        return (day >= 1 && day <= 4) && (time >= 1100 && time <= 1900);
+      }
+      return false;
+    };
+
+    // Add a function to check John Jay hours
+    const checkJohnJayHours = (title: string) => {
+      if (title === "John Jay") {
+        const now = new Date();
+        const day = now.getDay();
+        const time = now.getHours() * 100 + now.getMinutes();
+
+        // Sunday - Thursday (0-4): 9:30 AM - 9:00 PM
+        if (day >= 0 && day <= 4) {
+          return time >= 930 && time <= 2100;
+        }
+        return false;
+      }
+      return true; // For other dining halls
+    };
+
+    // Add JJ's hours check
+    const checkJJsHours = (title: string) => {
+      if (title === "JJs") {
+        const now = new Date();
+        const time = now.getHours() * 100 + now.getMinutes();
+        
+        // Open daily 12:00 PM - 10:00 AM next day
+        return time >= 1200 || time <= 1000;
+      }
+      return true;
+    };
+
+    // Handle food trucks
+    if (isFoodTruck) {
+      const isOpen = checkFoodTruckHours(title);
+      return (
+        <TouchableOpacity style={styles.diningButton}>
+          <ImageBackground source={image} resizeMode="cover" style={styles.imageBackground}>
+            <View style={styles.overlay} />
+            <Text style={styles.buttonText}>{title}</Text>
+            {isOpen ? (
+              <>
+                <View style={styles.progressBarContainer}>
+                  <View style={[
+                    styles.progressBarFill, 
+                    { 
+                      width: '100%',
+                      backgroundColor: "#9AD94B"
+                    }
+                  ]} />
+                </View>
+              </>
+            ) : (
+              <Text style={[styles.capacityText, { color: '#FFFFFF' }]}>Closed</Text>
+            )}
+          </ImageBackground>
+        </TouchableOpacity>
+      );
+    }
+
+    // Handle Barnard dining halls
+    if (isBarnard) {
+      const isOpen = checkBarnardHours(title);
+      // Different mock capacity data for each Barnard location
+      const mockData = isOpen ? {
+        use: Math.floor(Math.random() * 40) + 20, // Random between 20-60
+        capacity: title === "Dianas" ? 120 : 150 // Diana's: 120, Hewitt: 150
+      } : { use: 0, capacity: 0 };
+
+      return (
+        <TouchableOpacity style={styles.diningButton}>
+          <ImageBackground source={image} resizeMode="cover" style={styles.imageBackground}>
+            <View style={styles.overlay} />
+            <Text style={styles.buttonText}>{title}</Text>
+            {isOpen ? (
+              <>
+                <Text style={styles.capacityText}>{mockData.use}/{mockData.capacity}</Text>
+                <View style={styles.progressBarContainer}>
+                  <View style={[
+                    styles.progressBarFill, 
+                    { 
+                      width: `${(mockData.use / mockData.capacity) * 100}%`,
+                      backgroundColor: "#9AD94B"
+                    }
+                  ]} />
+                </View>
+              </>
+            ) : (
+              <Text style={[styles.capacityText, { color: '#FFFFFF' }]}>Closed</Text>
+            )}
+          </ImageBackground>
+        </TouchableOpacity>
+      );
+    }
+
+    // Handle Chef's locations
+    if (title === "Chef Mikes") {
+      const isOpen = checkChefHours(title);
+      return (
+        <TouchableOpacity style={styles.diningButton}>
+          <ImageBackground source={image} resizeMode="cover" style={styles.imageBackground}>
+            <View style={styles.overlay} />
+            <Text style={styles.buttonText}>{title}</Text>
+            {isOpen ? (
+              <>
+                <Text style={styles.capacityText}>
+                  {chefMikesData.use}/{chefMikesData.capacity}
+                </Text>
+                <View style={styles.progressBarContainer}>
+                  <View style={[
+                    styles.progressBarFill, 
+                    { 
+                      width: `${Math.max((chefMikesData.use / chefMikesData.capacity) * 100, 0)}%`,
+                      backgroundColor: "#9AD94B"
+                    }
+                  ]} />
+                </View>
+              </>
+            ) : (
+              <Text style={[styles.capacityText, { color: '#FFFFFF' }]}>Closed</Text>
+            )}
+          </ImageBackground>
+        </TouchableOpacity>
+      );
+    }
+
+    if (title === "Chef Dons") {
+      const isOpen = checkChefHours(title);
+      return (
+        <TouchableOpacity style={styles.diningButton}>
+          <ImageBackground source={image} resizeMode="cover" style={styles.imageBackground}>
+            <View style={styles.overlay} />
+            <Text style={styles.buttonText}>{title}</Text>
+            {isOpen ? (
+              <View style={styles.progressBarContainer}>
+                <View style={[
+                  styles.progressBarFill, 
+                  { 
+                    width: '100%',
+                    backgroundColor: "#9AD94B"
+                  }
+                ]} />
+              </View>
+            ) : (
+              <Text style={[styles.capacityText, { color: '#FFFFFF' }]}>Closed</Text>
+            )}
+          </ImageBackground>
+        </TouchableOpacity>
+      );
+    }
+
+    // Regular dining halls...
+    const isOpen = title === "Ferris" ? checkFerrisHours(title) : checkJohnJayHours(title);
     const fillPercentage = use / capacity;
-    
-    // Determine bar color
     let barColor;
     if (fillPercentage < 0.25) {
       barColor = "#9AD94B";
@@ -147,6 +499,39 @@ export default function WelcomeScreen() {
       barColor = "#E11111";
     }
 
+    if (title === "Faculty House") {
+      const isOpen = checkFacultyHours(title);
+      return (
+        <TouchableOpacity style={styles.diningButton}>
+          <ImageBackground source={image} resizeMode="cover" style={styles.imageBackground}>
+            <View style={styles.overlay} />
+            <Text style={styles.buttonText}>{title}</Text>
+            {isOpen ? (
+              <View style={styles.progressBarContainer}>
+                <View style={[
+                  styles.progressBarFill, 
+                  { 
+                    width: '100%',
+                    backgroundColor: "#9AD94B"
+                  }
+                ]} />
+              </View>
+            ) : (
+              <Text style={[styles.capacityText, { color: '#FFFFFF' }]}>Closed</Text>
+            )}
+          </ImageBackground>
+        </TouchableOpacity>
+      );
+    }
+
+    // Update the capacity display
+    const renderCapacity = () => {
+      if (use === null) {
+        return ""; // Show nothing while loading
+      }
+      return `${use}/${capacity}`;
+    };
+
     return (
       <TouchableOpacity 
         style={styles.diningButton} 
@@ -155,12 +540,16 @@ export default function WelcomeScreen() {
         <ImageBackground source={image} resizeMode="cover" style={styles.imageBackground}>
           <View style={styles.overlay} />
           <Text style={styles.buttonText}>{title}</Text>
-          <Text style={styles.capacityText}>{use}/{capacity}</Text>
-
-          {/* Progress Bar */}
+          {isOpen ? (
+            <>
+              <Text style={styles.capacityText}>{renderCapacity()}</Text>
           <View style={styles.progressBarContainer}>
             <View style={[styles.progressBarFill, { width: `${fillPercentage * 100}%`, backgroundColor: barColor }]} />
           </View>
+            </>
+          ) : (
+            <Text style={[styles.capacityText, { color: '#FFFFFF' }]}>Closed</Text>
+          )}
         </ImageBackground>
       </TouchableOpacity>
     );
@@ -211,24 +600,45 @@ export default function WelcomeScreen() {
           <Text style={styles.subtitleD}>Based on your history & preferences.</Text>
           <View style = {styles.dining}>
             <View style={styles.diningRow}>
-              <DiningButton title="John Jay" image={require("../assets/images/johnjay.jpg")} use={55} capacity = {80}  />
-              <DiningButton title="JJs" image={require("../assets/images/jjs.jpg")} use={70} capacity = {70}  />
+              <DiningButton 
+                title="John Jay" 
+                image={require("../assets/images/johnjay.jpg")} 
+                use={johnJayData.use} 
+                capacity={johnJayData.capacity} 
+              />
+              <DiningButton 
+                title="JJs" 
+                image={require("../assets/images/jjs.jpg")} 
+                use={jjsData.use} 
+                capacity={jjsData.capacity} 
+              />
             </View>
             <View style={styles.diningRow}>
-              <DiningButton title="Faculty House" image={require("../assets/images/fac.jpg")} use={30} capacity = {60}  />
-              <DiningButton title="Ferris" image={require("../assets/images/ferris.jpg")} use={10} capacity = {93}  />
+              <DiningButton 
+                title="Faculty House" 
+                image={require("../assets/images/fac.jpg")} 
+              />
+              <DiningButton title="Ferris" image={require("../assets/images/ferris.jpg")} use={ferrisData.use} capacity={ferrisData.capacity}  />
             </View>
             <View style={styles.diningRow}>
-              <DiningButton title="Dianas" image={require("../assets/images/dianas.jpg")} use={30} capacity = {60}  />
-              <DiningButton title="Hewitt" image={require("../assets/images/hewitt.jpg")} use={10} capacity = {93}  />
+              <DiningButton title="Dianas" image={require("../assets/images/dianas.jpg")} />
+              <DiningButton title="Hewitt" image={require("../assets/images/hewitt.jpg")} />
             </View>
             <View style={styles.diningRow}>
-              <DiningButton title="Johnnys" image={require("../assets/images/johnnys.jpg")} use={30} capacity = {60}  />
-              <DiningButton title="Fac Shack" image={require("../assets/images/facshack.jpg")} use={10} capacity = {93}  />
+              <DiningButton title="Johnnys" image={require("../assets/images/johnnys.jpg")} />
+              <DiningButton title="Fac Shack" image={require("../assets/images/facshack.jpg")} />
             </View>
             <View style={styles.diningRow}>
-              <DiningButton title="Chef Mikes" image={require("../assets/images/chefmikes.jpg")} use={30} capacity = {60}  />
-              <DiningButton title="Chef Dons" image={require("../assets/images/chefdons.jpg")} use={10} capacity = {93}  />
+              <DiningButton 
+                title="Chef Mikes" 
+                image={require("../assets/images/chefmikes.jpg")} 
+                use={chefMikesData.use} 
+                capacity={chefMikesData.capacity} 
+              />
+              <DiningButton 
+                title="Chef Dons" 
+                image={require("../assets/images/chefdons.jpg")} 
+              />
             </View>
           </View>
         </View>

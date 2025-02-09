@@ -31,8 +31,8 @@ export default function menu() {
   const reviews = [
     { name: "Alice", rating: 5, comment: "Delicious! Highly recommend." },
     { name: "John", rating: 4, comment: "Tasty but a bit salty." },
-    { name: "Emma", rating: 3, comment: "Average, not the best I’ve had." },
-    { name: "Mike", rating: 2, comment: "Not great, wouldn’t order again." },
+    { name: "Emma", rating: 3, comment: "Average, not the best I've had." },
+    { name: "Mike", rating: 2, comment: "Not great, wouldn't order again." },
     { name: "Chris", rating: 1, comment: "Terrible. Avoid at all costs." },
   ];
   
@@ -66,7 +66,7 @@ export default function menu() {
   const dietIcons = {
     Halal: require("../assets/images/Halal.png"),
     Vegan: require("../assets/images/Vegan.png"),
-    GlutenFree: require("../assets/images/Gluten Free.png"),
+    GlutenFree: require("../assets/images/Gluten_Free.png"),
   };
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(null);

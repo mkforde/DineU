@@ -66,7 +66,7 @@ export default function menu() {
   const dietIcons = {
     Halal: require("../assets/images/Halal.png"),
     Vegan: require("../assets/images/Vegan.png"),
-    GlutenFree: require("../assets/images/Gluten Free.png"),
+    GlutenFree: require("../assets/images/Gluten_Free.png"),
   };
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(null);
