@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, ScrollView, useWindowDimensions, TextInput } from "react-native";
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
 
 interface DiningButtonProps {
@@ -59,15 +60,41 @@ export default function CreateTableStep2() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [tableSize, setTableSize] = useState(2);
 
-  const handleSubmit = () => {
-    if (tableName.length > 0 && tableName.length <= 10) {
-      navigation.navigate('CreateTableStep3', {
-        diningHall,
-        tableName,
-        isPrivate,
-        tableSize
-      });
+  const validateTableName = async (name: string) => {
+    if (!name) return false;
+    
+    // Check if table name exists for this dining hall
+    const { data, error } = await supabase
+      .from('dining_tables')
+      .select('id')
+      .eq('dining_hall', diningHall.id)
+      .eq('table_name', name)
+      .eq('active', true)
+      .single();
+
+    if (error) {
+      console.error('Error checking table name:', error);
+      return false;
     }
+
+    return !data; // Return true if name is available
+  };
+
+  const handleSubmit = async () => {
+    if (tableName.length === 0 || tableName.length > 10) return;
+
+    const isValid = await validateTableName(tableName);
+    if (!isValid) {
+      alert('Table name already exists in this dining hall');
+      return;
+    }
+
+    navigation.navigate('CreateTableStep3', {
+      diningHall,
+      tableName,
+      isPrivate,
+      tableSize
+    });
   };
 
   const DiningButton = ({ title, image, use, capacity }: DiningButtonProps) => {

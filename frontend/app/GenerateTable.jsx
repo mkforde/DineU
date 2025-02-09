@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, ScrollView, useWindowDimensions, TextInput } from "react-native";
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
 
 interface DiningButtonProps {
@@ -52,6 +53,9 @@ export default function GenerateTable() {
   const route = useRoute();
   const navigation = useNavigation();
   const [pin, setPin] = useState(null);
+  const [tableData, setTableData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const { tableId } = route.params;
   
   const {
     diningHall = "",
@@ -63,7 +67,7 @@ export default function GenerateTable() {
   } = route.params || {};
 
   // Store all table data in one object for future use
-  const tableData = {
+  const tableDataObj = {
     diningHall,
     tableName,
     isPrivate,
@@ -95,6 +99,38 @@ export default function GenerateTable() {
       return () => clearTimeout(timer);
     }
   }, [isPrivate, navigation]);
+
+  useEffect(() => {
+    async function fetchTableData() {
+      try {
+        const { data: table, error: tableError } = await supabase
+          .from('dining_tables')
+          .select(`
+            *,
+            table_topics (*),
+            table_members (
+              user_id,
+              profiles:auth.users!user_id (
+                firstName,
+                lastName
+              )
+            )
+          `)
+          .eq('id', tableId)
+          .single();
+
+        if (tableError) throw tableError;
+        setTableData(table);
+      } catch (error) {
+        console.error('Error fetching table data:', error);
+        alert('Failed to load table data');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchTableData();
+  }, [tableId]);
 
   const handleSubmit = () => {
     navigation.navigate('GenerateTable', {
