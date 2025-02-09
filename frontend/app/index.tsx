@@ -1,7 +1,6 @@
 import React, { useEffect } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity } from "react-native";
 import { useRouter } from 'expo-router';
-import { auth } from '../config/firebase';
 import { supabase } from '../lib/supabase';
 
 export default function WelcomeScreen() {
@@ -17,11 +16,12 @@ export default function WelcomeScreen() {
     checkAuth();
   }, [router]);
 
-  const handleExplore = () => {
-    if (!auth.currentUser) {
-      router.push({ pathname: '/login' });
+  const handleExplore = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      router.push('/login');
     } else {
-      router.push({ pathname: '/home' });
+      router.push('/home');
     }
   };
 

@@ -27,7 +27,7 @@
         "expo-maps",
         {
           "requestLocationPermission": "true",
-          "locationPermission": "Allow Dine U to use your location"
+          "locationPermission": "Allow $(PRODUCT_NAME) to use your location"
         }
       ],
       "expo-router",
