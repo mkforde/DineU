@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  dining-api:
+    build: .
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - SUPABASE_URL=https://eilgfvfxoaptkbqirdmj.supabase.co
+      - SUPABASE_KEY=your_supabase_key 
