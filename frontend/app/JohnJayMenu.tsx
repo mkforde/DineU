@@ -97,7 +97,7 @@ export default function menu() {
 
         // Add detailed occupancy logging
         console.log('Fetching occupancy data for John Jay (ID: 840)');
-        const occupancyResponse = await fetch('http://localhost:3000/api/occupancy/840');
+        const occupancyResponse = await fetch('http://100.78.111.116:3000/api/occupancy/840');
         const occupancyData = await occupancyResponse.json();
         console.log('Raw occupancy response:', occupancyData);
         

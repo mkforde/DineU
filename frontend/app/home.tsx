@@ -15,6 +15,23 @@ interface DiningButtonProps {
 
 type LocationKey = 'chefMikes' | 'johnJay' | 'jjs' | 'ferris';
 
+interface OccupancyData {
+  use: number | null;
+  capacity: number;
+}
+
+interface OccupancyCache {
+  data: OccupancyData | null;
+  lastFetched: number;
+}
+
+interface OccupancyCacheRef {
+  chefMikes: OccupancyCache;
+  johnJay: OccupancyCache;
+  jjs: OccupancyCache;
+  ferris: OccupancyCache;
+}
+
 function CustomBottomNav() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
@@ -73,13 +90,13 @@ export default function WelcomeScreen() {
   const dataFetched = useRef(false);
   const recommendedDining = "John Jay";
   const { height } = useWindowDimensions();
-  const [jjsData, setJjsData] = useState({ use: null, capacity: 198 });
-  const [johnJayData, setJohnJayData] = useState({ use: null, capacity: 400 });
-  const [chefMikesData, setChefMikesData] = useState({ use: null, capacity: 171 });
-  const [ferrisData, setFerrisData] = useState({ use: null, capacity: 363 });
+  const [jjsData, setJjsData] = useState<OccupancyData>({ use: null, capacity: 198 });
+  const [johnJayData, setJohnJayData] = useState<OccupancyData>({ use: null, capacity: 400 });
+  const [chefMikesData, setChefMikesData] = useState<OccupancyData>({ use: null, capacity: 171 });
+  const [ferrisData, setFerrisData] = useState<OccupancyData>({ use: null, capacity: 363 });
 
-  // Add cache ref for occupancy data
-  const occupancyCache = useRef({
+  // Update the cache ref typing
+  const occupancyCache = useRef<OccupancyCacheRef>({
     chefMikes: { data: null, lastFetched: 0 },
     johnJay: { data: null, lastFetched: 0 },
     jjs: { data: null, lastFetched: 0 },
@@ -110,7 +127,12 @@ export default function WelcomeScreen() {
   }, []);
 
   // Update fetchOccupancyWithCache to use AsyncStorage instead of localStorage
-  const fetchOccupancyWithCache = async (id: number, capacity: number, setData: Function, location: LocationKey) => {
+  const fetchOccupancyWithCache = async (
+    id: number, 
+    capacity: number, 
+    setData: React.Dispatch<React.SetStateAction<OccupancyData>>, 
+    location: LocationKey
+  ) => {
     const now = Date.now();
     const cache = occupancyCache.current[location];
 
@@ -122,7 +144,8 @@ export default function WelcomeScreen() {
     // Only fetch new data if cache is older than 30 seconds
     if (!cache.data || now - cache.lastFetched > 30000) {
       try {
-        const response = await fetch(`http://localhost:3000/api/occupancy/${id}`);
+        // Replace TAILSCALE_IP with your laptop's Tailscale IP address
+        const response = await fetch(`http://100.78.111.116:3000/api/occupancy/${id}`);
         const occupancyData = await response.json();
         
         if (occupancyData.success && occupancyData.data) {
@@ -148,6 +171,12 @@ export default function WelcomeScreen() {
         }
       } catch (error) {
         console.error(`Error fetching ${location} occupancy:`, error);
+        // Add fallback data in case of network error
+        const fallbackData = {
+          use: Math.floor(capacity * 0.3), // Set to 30% as fallback
+          capacity: capacity
+        };
+        setData(fallbackData);
       }
     }
   };
@@ -179,7 +208,7 @@ export default function WelcomeScreen() {
       // If no profile or no firstName, create one
       try {
         const uni = session.user.email?.split('@')[0];
-        const directoryResponse = await fetch(`http://localhost:3000/api/directory/user/${uni}`);
+        const directoryResponse = await fetch(`http://100.78.111.116:3000/api/directory/user/${uni}`);
         const directoryData = await directoryResponse.json();
 
         if (directoryData.success) {
