@@ -4,7 +4,7 @@ import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimen
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useNavigation } from '@react-navigation/native';
-import { Map } from '../config/maps';
+import App from '../config/maps';
 
 interface DiningButtonProps {
   title: string;
@@ -172,9 +172,7 @@ export default function WelcomeScreen() {
   <View style = {styles.body}>
     <View style={styles.container}>
        
-      <ScrollView style={{ height: height - 82 }}> 
-        <Map></Map>
-      </ScrollView>
+        <App></App>
       <CustomBottomNav></CustomBottomNav>
    
     </View>
