@@ -1,38 +1,124 @@
-import React from "react";
-import { useState } from 'react';
+import React, { useState, useEffect } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
 import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
-
-
-
-
+// Add this function before the component
+function checkJJsHours() {
+  const now = new Date();
+  const time = now.getHours() * 100 + now.getMinutes();
+  
+  // JJ's hours: 12:00 PM - 10:00 AM next day
+  // Return true if time is between 12:00 PM (1200) and 11:59 PM (2359)
+  // OR between 12:00 AM (0) and 10:00 AM (1000)
+  return time >= 1200 || time <= 1000;
+}
 
 export default function menu() {
   const navigation = useNavigation(); // Initialize navigation
+  const [menuItems, setMenuItems] = useState({});
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [occupancyData, setOccupancyData] = useState(() => {
+    const cached = localStorage.getItem('jjs_occupancy');
+    return cached ? JSON.parse(cached) : { use: 0, capacity: 198 };
+  });
+  const [isOpen, setIsOpen] = useState(checkJJsHours());
+  const timing = "12:00 PM - 10:00 AM";
 
-  const menuItems = [
-    { 
-      name: "Grilled Chicken", 
-      calories: 350, 
-      dietary: ["Halal", "GlutenFree"] 
-    },
-    { 
-      name: "Vegan Salad", 
-      calories: 200, 
-      dietary: ["Vegan", "GlutenFree"] 
-    },
-    { 
-      name: "Cheeseburger", 
-      calories: 550, 
-      dietary: ["Vegan"] 
-    },
-  ];
+  // Diet/Allergen Icons
+  const dietIcons = {
+    'Vegan': require('../assets/images/Vegan.png'),
+    'Vegetarian': require('../assets/images/Vegan.png'),
+    'Halal': require('../assets/images/Halal.png'),
+    'Gluten Free': require('../assets/images/Gluten_Free.png')
+  };
+
+  // Fetch menu and nutrition data from cache
+  useEffect(() => {
+    async function fetchMenuData() {
+      try {
+        setMenuLoading(true);
+        
+        // Get menu items from cache
+        const { data: menuData, error: menuError } = await supabase
+          .from('menu_cache')
+          .select('*')
+          .eq('diningHall', "JJ's")
+          .order('foodType');
+
+        if (menuError) {
+          console.error('Error fetching menu:', menuError);
+          return;
+        }
+
+        // Get nutrition data from cache
+        const { data: nutritionData, error: nutritionError } = await supabase
+          .from('nutrition_cache')
+          .select('*')
+          .eq('dining_hall', "JJ's");
+
+        if (nutritionError) {
+          console.error('Error fetching nutrition:', nutritionError);
+        }
+
+        // Organize menu items by meal type and food type
+        const organizedMenu = menuData.reduce((acc, item) => {
+          // Create meal type section if it doesn't exist
+          if (!acc[item.mealType]) {
+            acc[item.mealType] = {};
+          }
+          
+          // Create food type section if it doesn't exist
+          if (!acc[item.mealType][item.foodType]) {
+            acc[item.mealType][item.foodType] = [];
+          }
+
+          // Find nutrition data for this item
+          const nutrition = nutritionData?.find(n => n.meal_name === item.foodName);
+
+          // Add item with its nutrition data
+          acc[item.mealType][item.foodType].push({
+            ...item,
+            // Ensure dietaryPreferences is a string
+            dietaryPreferences: typeof item.dietaryPreferences === 'string' 
+              ? item.dietaryPreferences 
+              : JSON.stringify(item.dietaryPreferences),
+            // Ensure contains is a string
+            contains: typeof item.contains === 'string'
+              ? item.contains
+              : JSON.stringify(item.contains),
+            nutrition: nutrition?.nutrition_data || {}
+          });
+
+          return acc;
+        }, {});
+
+        setMenuItems(organizedMenu);
+        setMenuLoading(false);
+      } catch (error) {
+        console.error('Error loading menu data:', error);
+        setMenuLoading(false);
+      }
+    }
+
+    fetchMenuData();
+  }, []);
+
+  // Add this useEffect after other useEffects
+  useEffect(() => {
+    // Check open status every minute
+    const interval = setInterval(() => {
+      setIsOpen(checkJJsHours());
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const reviews = [
     { name: "Alice", rating: 5, comment: "Delicious! Highly recommend." },
     { name: "John", rating: 4, comment: "Tasty but a bit salty." },
-    { name: "Emma", rating: 3, comment: "Average, not the best I’ve had." },
-    { name: "Mike", rating: 2, comment: "Not great, wouldn’t order again." },
+    { name: "Emma", rating: 3, comment: "Average, not the best I've had." },
+    { name: "Mike", rating: 2, comment: "Not great, wouldn't order again." },
     { name: "Chris", rating: 1, comment: "Terrible. Avoid at all costs." },
   ];
   
@@ -62,12 +148,6 @@ export default function menu() {
     return stars;
   };
   
-  
-  const dietIcons = {
-    Halal: require("../assets/images/Halal.png"),
-    Vegan: require("../assets/images/Vegan.png"),
-    GlutenFree: require("../assets/images/Gluten Free.png"),
-  };
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(null);
   const [items, setItems] = useState([
@@ -76,65 +156,114 @@ export default function menu() {
     { label: "Option 3", value: "option3" },
   ]);
 
-  const name = "Alice";
   const clickedDining = "JJ's Place";
-  const isOpen = "OPEN";
   const { height } = useWindowDimensions(); // Auto-updating height
-  const timing = "{Insert time}";
 
-  const DiningButton = ({ title, image, use, capacity }) => {
-     const fillPercentage = use / capacity;
-     const [selectedValue, setSelectedValue] = useState(null);
+  // Add getCurrentPeriod function
+  const getCurrentPeriod = () => {
+    const now = new Date();
+    const time = now.getHours() * 100 + now.getMinutes();
+    
+    // JJ's hours: 12:00 PM - 10:00 AM
+    if (time >= 1200 || time <= 1000) {
+      if (time >= 2000 || time <= 1000) {
+        return 'Late Night';
+      }
+      return 'Lunch/Dinner';
+    }
+    return null;
+  };
 
-     // Determine bar color
-     let barColor;
-     if (fillPercentage < 0.25) {
-       barColor = "#9AD94B";
-     } else if (fillPercentage <= 0.5) {
-       barColor = "#FFC632";
-     } else if (fillPercentage <= 0.75) {
-       barColor = "#E15C11";
-     } else {
-       barColor = "#E11111";
-     }
- 
-     return (
-       <TouchableOpacity style={styles.diningButton}>
-       
-          <Text style={[styles.capacityText, {color: barColor}]}>{use}/{capacity}</Text>
- 
-           {/* Progress Bar */}
-           <View style={styles.progressBarContainer}>
-             <View style={[styles.progressBarFill, { width: `${fillPercentage * 100}%`, backgroundColor: barColor }]} />
-           </View>
+  // Update menu rendering
+  const renderMenu = () => {
+    if (menuLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading menu...</Text>
+        </View>
+      );
+    }
 
-       </TouchableOpacity>
-     );
-   };
- 
+    // Combine all items across meal types and organize by food type
+    const foodTypes = {};
+    Object.values(menuItems).forEach(mealPeriod => {
+      Object.entries(mealPeriod).forEach(([foodType, items]) => {
+        if (!foodTypes[foodType]) {
+          foodTypes[foodType] = [];
+        }
+        foodTypes[foodType].push(...items);
+      });
+    });
+
+    return Object.entries(foodTypes).map(([foodType, items]) => (
+      <View key={foodType} style={styles.foodTypeSection}>
+        <Text style={styles.foodTypeTitle}>{foodType}</Text>
+        
+        {items.map((item, index) => (
+          <View key={index} style={styles.menuItem}>
+            <View style={styles.menuItemLeft}>
+              <Text style={styles.menuItemName}>{item.foodName}</Text>
+              {item.nutrition?.calories && (
+                <Text style={styles.calories}>{item.nutrition.calories} cal</Text>
+              )}
+              {item.contains && 
+               item.contains.replace(/[{}"\[\]]/g, '').split(',').filter(Boolean).length > 0 && (
+                <Text style={styles.allergens}>
+                  Contains: {item.contains.replace(/[{}]/g, '').split(',').filter(Boolean).join(', ')}
+                </Text>
+              )}
+            </View>
+            <View style={styles.dietaryIcons}>
+              {item.dietaryPreferences && 
+                (typeof item.dietaryPreferences === 'string' 
+                  ? item.dietaryPreferences
+                  : JSON.stringify(item.dietaryPreferences))
+                  .replace(/[{}"\[\]]/g, '')
+                  .split(',')
+                  .filter(pref => pref && pref.trim().length > 0)
+                  .map((diet, i) => {
+                    const cleanDiet = diet.trim();
+                    return dietIcons[cleanDiet] && (
+                      <Image 
+                        key={i} 
+                        source={dietIcons[cleanDiet]} 
+                        style={styles.dietaryIcon} 
+                      />
+                    );
+                  })
+              }
+            </View>
+          </View>
+        ))}
+      </View>
+    ));
+  };
+
   return (
   
-  <View style = {styles.body}>
+  <View style={styles.body}>
     <View style={styles.container}>
       <ScrollView> 
         <View style={styles.header}>
-            <ImageBackground source= {require("../assets/images/jjs.jpg")} resizeMode="cover" style={styles.imageBackground}>
+            <ImageBackground source={require("../assets/images/jjs.jpg")} resizeMode="cover" style={styles.imageBackground}>
               <View style={styles.overlay} />
               <TouchableOpacity style={styles.imgback} onPress={() => navigation.goBack()}>
                 <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
               </TouchableOpacity>              
-              <View  style = {styles.topheader}>
-                  <View style = {styles.openable}> <Text style={styles.openabletext}>{isOpen}</Text></View>
-                  <Text style={styles.title}>{clickedDining}</Text>
+              <View style={styles.topheader}>
+                <View style={styles.openable}>
+                  <Text style={styles.openabletext}>{isOpen ? 'OPEN' : 'CLOSED'}</Text>
+                </View>
+                <Text style={styles.title}>{clickedDining}</Text>
               </View>
-              <View style = {styles.bottomheader}>
-                  <Text style={styles.subtitle}>{timing}</Text>
+              <View style={styles.bottomheader}>
+                <Text style={styles.subtitle}>{timing}</Text>
               </View>
             </ImageBackground>
         </View>
 
         {/* Welcome Text */}
-        <View>
+        <View> 
           <View style = {styles.stats}>
             <View style = {styles.stat}>
               <View style = {styles.nutri}>
@@ -146,34 +275,32 @@ export default function menu() {
                 <Image source={require("../assets/images/tooltip.png")} />
               </View>
             </View>
-            <View style = {styles.imageM}>
+            <View style={styles.imageM}>
               <Image source={require("../assets/images/NutriB.png")} />
-              <DiningButton title="Fac's" image={require("../assets/images/fac.jpg")} use={30} capacity = {60}  />
+              <View style={styles.capacityContainer}>
+                <Text style={[styles.capacityText, { color: '#423934' }]}>
+                  {occupancyData.use}/{occupancyData.capacity}
+                </Text>
+                <View style={styles.progressBarContainer}>
+                  <View style={[
+                    styles.progressBarFill, 
+                    { 
+                      width: `${(occupancyData.use / occupancyData.capacity) * 100}%`,
+                      backgroundColor: occupancyData.use / occupancyData.capacity < 0.25 ? "#9AD94B" :
+                                     occupancyData.use / occupancyData.capacity <= 0.5 ? "#FFC632" :
+                                     occupancyData.use / occupancyData.capacity <= 0.75 ? "#E15C11" : 
+                                     "#E11111"
+                    }
+                  ]} />
+                </View>
+              </View>
             </View>
           </View>
 
           <View  style={styles.menuTitle}>
             <Text style={styles.titleM}>Menu</Text>
           </View>
-          <View style={styles.menuContainer}>
-            {menuItems.map((item, index) => (
-              <View key={index} style={styles.menuItem}>
-                <View>
-                  <Text style={styles.menuItemName}>{item.name}</Text>
-                  <Text style={styles.menuItemCalories}>{item.calories} kcal</Text>
-                </View>
-                <View style={styles.dietaryIcons}>
-                  {item.dietary.map((diet, i) => (
-                    <Image 
-                      key={i} 
-                      source={dietIcons[diet]} 
-                      style={styles.dietaryIcon} 
-                    />
-                  ))}
-                </View>
-              </View>
-            ))}
-          </View>
+          {renderMenu()}
           <View style={styles.reviewsContainer}>
             <Text style={styles.sectionTitle}>Reviews</Text>
             {reviews.map((review, index) => (
@@ -411,5 +538,63 @@ overlay: {
     width: 18,
     height: 18,
     marginRight: 3,
-  }
+  },
+  capacityContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#423934",
+  },
+  foodTypeSection: {
+    marginBottom: 20,
+  },
+  foodTypeTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#423934',
+    marginBottom: 10,
+    paddingBottom: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  menuItemLeft: {
+    flex: 1,
+  },
+  allergens: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  mealSection: {
+    marginBottom: 24,
+  },
+  mealTypeTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#423934',
+    marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  calories: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
 });

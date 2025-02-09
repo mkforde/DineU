@@ -1,38 +1,32 @@
-import React from "react";
-import { useState } from 'react';
+import React, { useState, useEffect } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
 import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../lib/supabase';
 
-
-
-
-
+// Add hours check function
+function checkFerrisHours() {
+  const now = new Date();
+  const time = now.getHours() * 100 + now.getMinutes();
+  // Ferris hours: 7:30 AM - 8:00 PM
+  return time >= 730 && time <= 2000;
+}
 
 export default function menu() {
   const navigation = useNavigation(); // Initialize navigation
+  const [menuItems, setMenuItems] = useState({});
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [occupancyData, setOccupancyData] = useState(() => {
+    const cached = localStorage.getItem('ferris_occupancy');
+    return cached ? JSON.parse(cached) : { use: 0, capacity: 363 };
+  });
+  const [isOpen, setIsOpen] = useState(checkFerrisHours());
+  const timing = "7:30 AM - 8:00 PM";
 
-  const menuItems = [
-    { 
-      name: "Grilled Chicken", 
-      calories: 350, 
-      dietary: ["Halal", "GlutenFree"] 
-    },
-    { 
-      name: "Vegan Salad", 
-      calories: 200, 
-      dietary: ["Vegan", "GlutenFree"] 
-    },
-    { 
-      name: "Cheeseburger", 
-      calories: 550, 
-      dietary: ["Vegan"] 
-    },
-  ];
   const reviews = [
     { name: "Alice", rating: 5, comment: "Delicious! Highly recommend." },
     { name: "John", rating: 4, comment: "Tasty but a bit salty." },
-    { name: "Emma", rating: 3, comment: "Average, not the best I’ve had." },
-    { name: "Mike", rating: 2, comment: "Not great, wouldn’t order again." },
+    { name: "Emma", rating: 3, comment: "Average, not the best I've had." },
+    { name: "Mike", rating: 2, comment: "Not great, wouldn't order again." },
     { name: "Chris", rating: 1, comment: "Terrible. Avoid at all costs." },
   ];
   
@@ -64,9 +58,10 @@ export default function menu() {
   
   
   const dietIcons = {
-    Halal: require("../assets/images/Halal.png"),
-    Vegan: require("../assets/images/Vegan.png"),
-    GlutenFree: require("../assets/images/Gluten Free.png"),
+    'Vegan': require('../assets/images/Vegan.png'),
+    'Vegetarian': require('../assets/images/Vegan.png'),
+    'Halal': require('../assets/images/Halal.png'),
+    'Gluten Free': require('../assets/images/Gluten_Free.png')
   };
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(null);
@@ -78,9 +73,149 @@ export default function menu() {
 
   const name = "Alice";
   const clickedDining = "Ferris";
-  const isOpen = "OPEN";
   const { height } = useWindowDimensions(); // Auto-updating height
-  const timing = "{Insert time}";
+
+  // Fetch menu and nutrition data from cache
+  useEffect(() => {
+    async function fetchMenuData() {
+      try {
+        setMenuLoading(true);
+        
+        // Get menu items from cache
+        const { data: menuData, error: menuError } = await supabase
+          .from('menu_cache')
+          .select('*')
+          .eq('diningHall', "Ferris")
+          .order('foodType');
+
+        if (menuError) {
+          console.error('Error fetching menu:', menuError);
+          return;
+        }
+
+        // Get nutrition data from cache
+        const { data: nutritionData, error: nutritionError } = await supabase
+          .from('nutrition_cache')
+          .select('*')
+          .eq('dining_hall', "Ferris");
+
+        if (nutritionError) {
+          console.error('Error fetching nutrition:', nutritionError);
+        }
+
+        // Organize menu items by food type
+        const organizedMenu = menuData.reduce((acc, item) => {
+          // Create food type section if it doesn't exist
+          if (!acc[item.foodType]) {
+            acc[item.foodType] = [];
+          }
+
+          // Find nutrition data for this item
+          const nutrition = nutritionData?.find(n => n.meal_name === item.foodName);
+
+          // Add item with its nutrition data
+          acc[item.foodType].push({
+            ...item,
+            // Ensure dietaryPreferences is a string
+            dietaryPreferences: typeof item.dietaryPreferences === 'string' 
+              ? item.dietaryPreferences 
+              : JSON.stringify(item.dietaryPreferences),
+            // Ensure contains is a string
+            contains: typeof item.contains === 'string'
+              ? item.contains
+              : JSON.stringify(item.contains),
+            nutrition: nutrition?.nutrition_data || {}
+          });
+
+          return acc;
+        }, {});
+
+        setMenuItems(organizedMenu);
+        setMenuLoading(false);
+      } catch (error) {
+        console.error('Error loading menu data:', error);
+        setMenuLoading(false);
+      }
+    }
+
+    fetchMenuData();
+  }, []);
+
+  // Check open status periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsOpen(checkFerrisHours());
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Menu rendering function
+  const renderMenu = () => {
+    if (menuLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading menu...</Text>
+        </View>
+      );
+    }
+
+    return Object.entries(menuItems).map(([foodType, items]) => (
+      <View key={foodType} style={styles.foodTypeSection}>
+        <View style={styles.foodTypeTitleContainer}>
+          <Text style={styles.foodTypeTitle}>{foodType}</Text>
+        </View>
+        
+        {items.map((item, index) => (
+          <View key={index} style={styles.menuItem}>
+            <View style={styles.menuItemContent}>
+              <View style={styles.menuItemLeft}>
+                <Text style={styles.menuItemName}>{item.foodName}</Text>
+                <View style={styles.menuItemDetails}>
+                  {item.nutrition?.calories && (
+                    <Text style={styles.calories}>{item.nutrition.calories} calories</Text>
+                  )}
+                  {item.contains && 
+                   item.contains.replace(/[{}"\[\]]/g, '').split(',').filter(c => c && c.trim().length > 0).length > 0 && (
+                    <Text style={styles.allergens}>
+                      Contains: {
+                        item.contains
+                          .replace(/[{}"\[\]]/g, '')
+                          .split(',')
+                          .filter(c => c && c.trim().length > 0)
+                          .map(c => c.trim())
+                          .join(', ')
+                      }
+                    </Text>
+                  )}
+                </View>
+              </View>
+              <View style={styles.dietaryIconsContainer}>
+                {item.dietaryPreferences && 
+                 (typeof item.dietaryPreferences === 'string' 
+                  ? item.dietaryPreferences
+                  : JSON.stringify(item.dietaryPreferences))
+                  .replace(/[{}"\[\]]/g, '')
+                  .split(',')
+                  .filter(pref => pref && pref.trim().length > 0)
+                  .length > 0 && (
+                  <View style={styles.dietaryIcons}>
+                    {item.dietaryPreferences.replace(/[{}"\[\]]/g, '').split(',').filter(pref => pref && pref.trim().length > 0).map((pref, i) => (
+                      <Image 
+                        key={i} 
+                        source={dietIcons[pref]} 
+                        style={styles.dietaryIcon} 
+                      />
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        ))}
+      </View>
+    ));
+  };
 
   const DiningButton = ({ title, image, use, capacity }) => {
      const fillPercentage = use / capacity;
@@ -124,7 +259,7 @@ export default function menu() {
                 <Image style={styles.imgback} source={require("../assets/images/backsymb.png")} />
               </TouchableOpacity>              
               <View  style = {styles.topheader}>
-                  <View style = {styles.openable}> <Text style={styles.openabletext}>{isOpen}</Text></View>
+                  <View style = {styles.openable}> <Text style={styles.openabletext}>{isOpen ? "OPEN" : "CLOSED"}</Text></View>
                   <Text style={styles.title}>{clickedDining}</Text>
               </View>
               <View style = {styles.bottomheader}>
@@ -148,7 +283,7 @@ export default function menu() {
             </View>
             <View style = {styles.imageM}>
               <Image source={require("../assets/images/NutriB.png")} />
-              <DiningButton title="Fac's" image={require("../assets/images/fac.jpg")} use={30} capacity = {60}  />
+              <DiningButton title="Fac's" image={require("../assets/images/fac.jpg")} use={occupancyData.use} capacity = {occupancyData.capacity}  />
             </View>
           </View>
 
@@ -156,23 +291,7 @@ export default function menu() {
             <Text style={styles.titleM}>Menu</Text>
           </View>
           <View style={styles.menuContainer}>
-            {menuItems.map((item, index) => (
-              <View key={index} style={styles.menuItem}>
-                <View>
-                  <Text style={styles.menuItemName}>{item.name}</Text>
-                  <Text style={styles.menuItemCalories}>{item.calories} kcal</Text>
-                </View>
-                <View style={styles.dietaryIcons}>
-                  {item.dietary.map((diet, i) => (
-                    <Image 
-                      key={i} 
-                      source={dietIcons[diet]} 
-                      style={styles.dietaryIcon} 
-                    />
-                  ))}
-                </View>
-              </View>
-            ))}
+            {renderMenu()}
           </View>
           <View style={styles.reviewsContainer}>
             <Text style={styles.sectionTitle}>Reviews</Text>
@@ -411,5 +530,39 @@ overlay: {
     width: 18,
     height: 18,
     marginRight: 3,
-  }
+  },
+  foodTypeSection: {
+    marginBottom: 20,
+  },
+  foodTypeTitleContainer: {
+    marginBottom: 10,
+  },
+  foodTypeTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  menuItemContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  menuItemLeft: {
+    flexDirection: "column",
+  },
+  menuItemDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  calories: {
+    fontSize: 14,
+    color: "#8D7861",
+  },
+  allergens: {
+    fontSize: 14,
+    color: "#8D7861",
+  },
+  dietaryIconsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
 });

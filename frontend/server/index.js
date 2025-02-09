@@ -1,9 +1,10 @@
 const express = require('express');
 const cors = require('cors');
-const menuRouter = require('./menuScraper');
+const { router: menuRouter } = require('./menuScraper');
 const occupancyRoutes = require('./occupancyRoutes');
 const directoryRoutes = require('./directoryScraper');
 const { createClient } = require('@supabase/supabase-js');
+const { refreshCache } = require('./cacheRefreshService');
 
 const app = express();
 app.use(cors());
@@ -24,6 +25,9 @@ app.use((req, res, next) => {
 app.use('/api/dining', menuRouter);
 app.use('/api/occupancy', occupancyRoutes);
 app.use('/api/directory', directoryRoutes);
+
+
+// Run initial cache refresh when server starts
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
