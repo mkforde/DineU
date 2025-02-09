@@ -69,7 +69,7 @@ export default function WelcomeScreen() {
     return ''; // Initial empty state
   });
   const dataFetched = useRef(false);
-  const recommendedDining = "John Jay";
+  const [recommendedDining, setRecommendedDining] = useState('');
   const { height } = useWindowDimensions();
   const [jjsData, setJjsData] = useState(() => {
     const cached = localStorage.getItem('jjs_occupancy');
@@ -555,6 +555,85 @@ export default function WelcomeScreen() {
     );
   };
 
+  const [diningHallScores, setDiningHallScores] = useState([]);
+
+  useEffect(() => {
+    async function fetchDiningData() {
+      try {
+        const { data: meals, error } = await supabase
+          .from('nutrition_cache')
+          .select('*');
+
+        if (error) throw error;
+
+        // Group meals by dining hall
+        const diningHalls = {};
+        meals.forEach(meal => {
+          if (!diningHalls[meal.dining_hall]) {
+            diningHalls[meal.dining_hall] = [];
+          }
+          diningHalls[meal.dining_hall].push(meal.nutrition_data);
+        });
+
+        // Calculate average scores for each dining hall
+        const scoredHalls = Object.entries(diningHalls).map(([name, meals]) => {
+          // Calculate averages
+          const avgNutrition = meals.reduce((acc, meal) => {
+            acc.protein += meal.protein;
+            acc.calories += meal.calories;
+            acc.fiber += meal.fiber;
+            acc.fat += meal.fat;
+            acc.sodium += meal.sodium;
+            return acc;
+          }, { protein: 0, calories: 0, fiber: 0, fat: 0, sodium: 0 });
+
+          const mealCount = meals.length;
+          Object.keys(avgNutrition).forEach(key => {
+            avgNutrition[key] = avgNutrition[key] / mealCount;
+          });
+
+          // Calculate health score
+          // 40% protein-to-calorie ratio
+          // 30% fiber content
+          // 30% penalty for high fat and sodium
+          const proteinScore = (avgNutrition.protein / avgNutrition.calories) * 40;
+          const fiberScore = (avgNutrition.fiber / 25) * 30; // 25g is daily recommended fiber
+          const penaltyScore = Math.max(0, 30 - (avgNutrition.fat / 65 + avgNutrition.sodium / 2300) * 15);
+          
+          const totalScore = parseInt((proteinScore + fiberScore + penaltyScore).toFixed(0));
+
+          return {
+            name,
+            score: totalScore,
+            averages: avgNutrition,
+            mealCount
+          };
+        }).sort((a, b) => b.score - a.score);
+
+        setDiningHallScores(scoredHalls);
+        
+        // Store the recommended dining hall
+        if (scoredHalls.length > 0) {
+          setRecommendedDining(scoredHalls[0].name);
+          console.log('Recommended Dining Hall:', scoredHalls[0].name);
+          console.log('Health Score:', scoredHalls[0].score);
+          console.log('Average Nutrition per Meal:');
+          console.log('- Protein:', scoredHalls[0].averages.protein.toFixed(1) + 'g');
+          console.log('- Calories:', scoredHalls[0].averages.calories.toFixed(0));
+          console.log('- Fiber:', scoredHalls[0].averages.fiber.toFixed(1) + 'g');
+          console.log('- Fat:', scoredHalls[0].averages.fat.toFixed(1) + 'g');
+          console.log('- Sodium:', scoredHalls[0].averages.sodium.toFixed(0) + 'mg');
+          console.log('Based on', scoredHalls[0].mealCount, 'meals');
+        }
+
+      } catch (error) {
+        console.error('Error fetching dining data:', error);
+      }
+    }
+
+    fetchDiningData();
+  }, []);
+
   return (
   
   <View style = {styles.body}>
@@ -570,7 +649,7 @@ export default function WelcomeScreen() {
             <Text style={styles.title}>
               Hey {userName || 'there'},
             </Text>
-            <Text style={styles.desc}>Let's hit up <Text style={styles.bold}>{recommendedDining}</Text>, your usual spot.</Text>
+            <Text style={styles.desc}>Today's Recommended Dining Hall is ... <Text style={styles.bold}>{recommendedDining}</Text>!</Text>
           </View>
           <View style = {styles.image1}>
             <Image source={require("../assets/images/Animal Avatar.png")}/>
