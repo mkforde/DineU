@@ -8,9 +8,9 @@ Dining U is a smart dining companion that transforms college dining into a more 
 
 What makes our app unique is its dual focus on nutrition and social dining. Students can receive personalized meal recommendations based on dietary preferences and nutritional goals while also seeing where friends are eating and coordinating group meals in real time. By integrating smart food suggestions with a social dining network, [App Name] encourages students to eat better while fostering stronger connections on campus.
 
-#🚀 Main Features
+# 🚀 Main Features
 
-##🍽 Nutrition & Meal Insights
+## 🍽 Nutrition & Meal Insights
 
 Calories of Meals: Provides real-time calorie counts and nutritional breakdowns of dining hall menu items.
 
