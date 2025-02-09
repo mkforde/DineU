@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions, SafeAreaView } from "react-native";
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -19,7 +19,11 @@ export default function menu() {
   const navigation = useNavigation(); // Initialize navigation
   const [menuItems, setMenuItems] = useState({});
   const [menuLoading, setMenuLoading] = useState(true);
-  const [occupancyData, setOccupancyData] = useState({ use: 0, capacity: 198 });
+  const [occupancyData, setOccupancyData] = useState({ use: null, capacity: 198 });
+  const occupancyCache = useRef({
+    data: null,
+    lastFetched: 0
+  });
   const [isOpen, setIsOpen] = useState(checkJJsHours());
   const timing = "12:00 PM - 10:00 AM";
 
@@ -118,13 +122,73 @@ export default function menu() {
       try {
         const cached = await AsyncStorage.getItem('jjs_occupancy');
         if (cached) {
-          setOccupancyData(JSON.parse(cached));
+          const parsedData = JSON.parse(cached);
+          setOccupancyData(parsedData);
         }
       } catch (error) {
         console.error('Error loading stored data:', error);
       }
     }
     loadStoredData();
+  }, []);
+
+  // Replace the existing occupancy fetch useEffect with this one:
+  useEffect(() => {
+    async function fetchOccupancyWithCache() {
+      const now = Date.now();
+      const cache = occupancyCache.current;
+
+      // Immediately show cached data if available
+      if (cache.data) {
+        setOccupancyData(cache.data);
+      }
+
+      // Only fetch new data if cache is older than 30 seconds
+      if (!cache.data || now - cache.lastFetched > 30000) {
+        try {
+          const response = await fetch('http://100.78.111.116:3000/api/occupancy/839');
+          const occupancyData = await response.json();
+          
+          if (occupancyData.success && occupancyData.data) {
+            const percentage = occupancyData.data.percentageFull * 100;
+            const currentOccupancy = Math.round((percentage * 198) / 100);
+            
+            const newData = {
+              use: currentOccupancy,
+              capacity: 198
+            };
+
+            // Update both memory cache and AsyncStorage
+            occupancyCache.current = {
+              data: newData,
+              lastFetched: now
+            };
+            await AsyncStorage.setItem('jjs_occupancy', JSON.stringify(newData));
+
+            if (!cache.data || cache.data.use !== newData.use) {
+              setOccupancyData(newData);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching occupancy:', error);
+          // Add fallback data in case of network error
+          const fallbackData = {
+            use: Math.floor(198 * 0.3), // Set to 30% as fallback
+            capacity: 198
+          };
+          setOccupancyData(fallbackData);
+        }
+      }
+    }
+
+    // Initial fetch
+    fetchOccupancyWithCache();
+
+    // Set up interval to fetch every 30 seconds
+    const interval = setInterval(fetchOccupancyWithCache, 30000);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(interval);
   }, []);
 
   const reviews = [
@@ -301,19 +365,28 @@ export default function menu() {
                       <Image source={require("../assets/images/NutriB.png")} />
                       <View style={styles.capacityContainer}>
                         <Text style={[styles.capacityText, { color: '#423934' }]}>
-                          {occupancyData.use}/{occupancyData.capacity}
+                          {occupancyData.use !== null ? 
+                            `${occupancyData.use}/${occupancyData.capacity}` : 
+                            'Loading...'
+                          }
                         </Text>
                         <View style={styles.progressBarContainer}>
-                          <View style={[
-                            styles.progressBarFill, 
-                            { 
-                              width: `${(occupancyData.use / occupancyData.capacity) * 100}%`,
-                              backgroundColor: occupancyData.use / occupancyData.capacity < 0.25 ? "#9AD94B" :
-                                             occupancyData.use / occupancyData.capacity <= 0.5 ? "#FFC632" :
-                                             occupancyData.use / occupancyData.capacity <= 0.75 ? "#E15C11" : 
-                                             "#E11111"
-                            }
-                          ]} />
+                          <View 
+                            style={[
+                              styles.progressBarFill, 
+                              { 
+                                width: occupancyData.use !== null ? 
+                                  `${Math.min((occupancyData.use / occupancyData.capacity) * 100, 100)}%` : 
+                                  '0%',
+                                backgroundColor: 
+                                  occupancyData.use === null ? "#ccc" :
+                                  occupancyData.use / occupancyData.capacity < 0.25 ? "#9AD94B" :
+                                  occupancyData.use / occupancyData.capacity <= 0.5 ? "#FFC632" :
+                                  occupancyData.use / occupancyData.capacity <= 0.75 ? "#E15C11" : 
+                                  "#E11111"
+                              }
+                            ]} 
+                          />
                         </View>
                       </View>
                     </View>
@@ -429,9 +502,10 @@ const styles = StyleSheet.create({
 
   },
   imageM:{
-    justifyContent: "space-evenly",
     flexDirection: "row",
-    alignItems:"center",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 20,
   },
   stat:{
     
@@ -509,11 +583,10 @@ overlay: {
     borderRadius: 4,
     overflow: "hidden",
     marginTop: 5,
-    marginLeft: "5%",
-
   },
   progressBarFill: {
     height: "100%",
+    borderRadius: 4,
   },
   
   buttonText: {
@@ -524,12 +597,15 @@ overlay: {
 
    
   },
+  capacityContainer: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    marginLeft: 20,
+  },
   capacityText: {
-    color: "#FFFFFF",
     fontSize: 13.56,
     fontWeight: "900",
-
-    
+    marginBottom: 5,
   },
   reviewsContainer: {
     backgroundColor: "#FDFECC",
@@ -561,20 +637,6 @@ overlay: {
     width: 18,
     height: 18,
     marginRight: 3,
-  },
-  capacityContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#423934",
   },
   foodTypeSection: {
     marginBottom: 20,

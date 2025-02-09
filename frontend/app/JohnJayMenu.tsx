@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions, SafeAreaView } from "react-native";
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -92,21 +92,6 @@ export default function Menu() {
 
         setMenuItems(organizedMenu);
         setMenuLoading(false);
-
-        // Add detailed occupancy logging
-        console.log('Fetching occupancy data for John Jay (ID: 840)');
-        const occupancyResponse = await fetch('http://100.78.111.116:3000/api/occupancy/840');
-        const occupancyData = await occupancyResponse.json();
-        console.log('Raw occupancy response:', occupancyData);
-        
-        if (occupancyData.success) {
-          setOccupancyData({
-            use: occupancyData.data.currentOccupancy || 0,
-            capacity: occupancyData.data.maxCapacity || 0
-          });
-        } else {
-          console.warn('No occupancy data available:', occupancyData);
-        }
       } catch (error) {
         console.error('Error in fetchData:', error);
         setMenuLoading(false);
@@ -127,20 +112,6 @@ export default function Menu() {
     }, 60000);
 
     return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    async function loadStoredData() {
-      try {
-        const cached = await AsyncStorage.getItem('johnjay_occupancy');
-        if (cached) {
-          setOccupancyData(JSON.parse(cached));
-        }
-      } catch (error) {
-        console.error('Error loading stored data:', error);
-      }
-    }
-    loadStoredData();
   }, []);
 
   useEffect(() => {
@@ -267,13 +238,8 @@ export default function Menu() {
               </TouchableOpacity>              
               <View  style = {styles.topheader}>
                   <View style={[styles.openable, isOpen === "CLOSED" && styles.closedBadge]}>
-                    <Text 
-                      style={[
-                        styles.openabletext, 
-                        isOpen === "CLOSED" && styles.closedText
-                      ]}
-                    >
-                      {isOpen}
+                    <Text style={[styles.openabletext, isOpen === "CLOSED" && styles.closedText]}>
+                      <Text>{isOpen}</Text>
                     </Text>
                   </View>
                   <Text style={styles.title}>{clickedDining}</Text>

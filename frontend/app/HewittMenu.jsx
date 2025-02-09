@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions, SafeAreaView } from "react-native";
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -102,21 +102,6 @@ export default function menu() {
        </TouchableOpacity>
      );
    };
-
-  // Add useEffect to load stored data
-  useEffect(() => {
-    async function loadStoredData() {
-      try {
-        const cached = await AsyncStorage.getItem('hewitt_occupancy');
-        if (cached) {
-          setOccupancyData(JSON.parse(cached));
-        }
-      } catch (error) {
-        console.error('Error loading stored data:', error);
-      }
-    }
-    loadStoredData();
-  }, []);
 
   // Fetch menu and nutrition data from cache
   useEffect(() => {
