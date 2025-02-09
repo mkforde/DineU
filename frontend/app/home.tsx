@@ -33,10 +33,10 @@ function CustomBottomNav() {
         />
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => { setActiveTab("nutrition"); navigation.navigate("nutrition"); }}>
+      <TouchableOpacity onPress={() => { setActiveTab("location"); navigation.navigate("location"); }}>
         <Image
-          source={require("../assets/images/icon_nutrition.png")}
-          style={[ activeTab === "nutrition" && styles.activeIcon]}
+          source={require("../assets/images/location.png")}
+          style={[ activeTab === "location" && styles.activeIcon]}
         />
       </TouchableOpacity>
       <TouchableOpacity onPress={() => { setActiveTab("profile"); navigation.navigate("profile"); }}>
@@ -172,8 +172,10 @@ export default function WelcomeScreen() {
     <View style={styles.container}>
       
   
-      <ScrollView style={{ height: height - 82 }} contentContainerStyle={{  marginLeft: 20 }}> 
-
+      <ScrollView 
+        style={{ height: height - 82 }} 
+        contentContainerStyle={{ alignItems: "center" }}
+      >
         <View style={styles.header}>
           <View style={styles.top} >
             <Text style={styles.title}>
