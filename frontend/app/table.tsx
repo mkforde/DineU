@@ -40,50 +40,36 @@ function CustomBottomNav() {
   );
 }
 
-const TableChatPreview = ({ title, lastMessage, time, unreadCount, isPrivate }) => {
-  const navigation = useNavigation();
-
-  const handleChatPress = () => {
-    if (title === "Private John Jay Lunch") {
-      navigation.navigate('PrivateJohnJayLunch');
-    }
-    // You can add more conditions here for other chats
-  };
-
-  return (
-    <TouchableOpacity 
-      style={[
-        styles.chatPreview,
-        isPrivate && styles.privateChatOverlay
-      ]}
-      onPress={handleChatPress}
-    >
-      <View style={styles.chatImageContainer}>
-        <Image source={require("../assets/images/group_icon.png")} style={styles.tableIcon} />
-        {isPrivate && (
-          <View style={styles.lockContainer}>
-            <Image 
-              source={require("../assets/images/Lock.png")} 
-              style={styles.lockIcon}
-            />
-          </View>
-        )}
-      </View>
-      <View style={styles.chatInfo}>
-        <Text style={styles.chatTitle}>{title}</Text>
-        <Text style={styles.lastMessage} numberOfLines={1}>{lastMessage}</Text>
-      </View>
-      <View style={styles.chatMeta}>
-        <Text style={styles.timeText}>{time}</Text>
-        {unreadCount > 0 && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadText}>{unreadCount}</Text>
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-};
+const TableChatPreview = ({ title, lastMessage, time, unreadCount, isPrivate }) => (
+  <TouchableOpacity style={[
+    styles.chatPreview,
+    isPrivate && styles.privateChatOverlay
+  ]}>
+    <View style={styles.chatImageContainer}>
+      <Image source={require("../assets/images/group_icon.png")} style={styles.tableIcon} />
+      {isPrivate && (
+        <View style={styles.lockContainer}>
+          <Image 
+            source={require("../assets/images/Lock.png")} 
+            style={styles.lockIcon}
+          />
+        </View>
+      )}
+    </View>
+    <View style={styles.chatInfo}>
+      <Text style={styles.chatTitle}>{title}</Text>
+      <Text style={styles.lastMessage} numberOfLines={1}>{lastMessage}</Text>
+    </View>
+    <View style={styles.chatMeta}>
+      <Text style={styles.timeText}>{time}</Text>
+      {unreadCount > 0 && (
+        <View style={styles.unreadBadge}>
+          <Text style={styles.unreadText}>{unreadCount}</Text>
+        </View>
+      )}
+    </View>
+  </TouchableOpacity>
+);
 
 export default function WelcomeScreen() {
   const { height } = useWindowDimensions();

@@ -137,7 +137,7 @@ export default function CreateTableStep3() {
   return (
     <View style={styles.body}>
       <View style={styles.container}>
-        <ScrollView style={{ height: height - 82 }}>
+        <ScrollView style={{ height: height - 82, marginBottom: 80 }}>
           <View style={styles.top}>
             <Text style={styles.title}>Set the Vibe</Text>
             <Text style={styles.subtitle}>for {tableName}</Text>
@@ -200,6 +200,15 @@ export default function CreateTableStep3() {
             <Text style={styles.submitButtonText}>Create a table</Text>
           </TouchableOpacity>
         </ScrollView>
+        
+        <View style={styles.closeButtonContainer}>
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => navigation.navigate('table')}
+          >
+            <Text style={styles.closeButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -314,5 +323,26 @@ const styles = StyleSheet.create({
     color: "#FFFFFF", // Light yellow text
     fontWeight: "900",
     marginLeft: "5%",
+  },
+  closeButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor: '#FDFECC',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+  },
+  closeButton: {
+    backgroundColor: "#E15C11",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  closeButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

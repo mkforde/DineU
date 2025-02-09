@@ -50,9 +50,9 @@ function CustomBottomNav() {
 }
 export default function WelcomeScreen() {
   const { height } = useWindowDimensions();
+  const navigation = useNavigation();
   
   const DiningButton = ({ title, image, use, capacity }: DiningButtonProps) => {
-    const navigation = useNavigation();
     const fillPercentage = use / capacity;
     
     // Determine bar color
@@ -88,13 +88,13 @@ export default function WelcomeScreen() {
   return (
     <View style={styles.body}>
       <View style={styles.container}>
-        <ScrollView style={{ height: height - 82 }}>
+        <ScrollView style={{ height: height - 82, marginBottom: 80 }}>
           <View style={styles.top}>
             <Text style={styles.title}>Create a table</Text>
             <Image source={require("../assets/images/Progress bar 1.png")}/>
           </View>
           <Text style={styles.subtitle}>Choose your dining hall:</Text>
-          <View style = {styles.dining}>
+          <View style={styles.dining}>
             <View style={styles.diningRow}>
               <DiningButton title="John Jay" image={require("../assets/images/johnjay.jpg")} use={55} capacity = {80}  />
               <DiningButton title="JJs" image={require("../assets/images/jjs.jpg")} use={70} capacity = {70}  />
@@ -117,7 +117,16 @@ export default function WelcomeScreen() {
             </View>
           </View>
         </ScrollView>
+        
+        <View style={styles.closeButtonContainer}>
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => navigation.navigate('table')}
+          >
+            <Text style={styles.closeButtonText}>Cancel</Text>
+          </TouchableOpacity>
         </View>
+      </View>
     </View>
   );
 }
@@ -379,6 +388,28 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: "100%",
+  },
+
+  closeButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    width: '100%',
+    backgroundColor: '#FDFECC',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+  },
+  closeButton: {
+    backgroundColor: "#E15C11",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  closeButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
 
 });

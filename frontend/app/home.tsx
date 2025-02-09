@@ -4,7 +4,6 @@ import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimen
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface DiningButtonProps {
   title: string;
@@ -56,27 +55,38 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const [userName, setUserName] = useState(() => {
     // Initialize name synchronously if possible
-    supabase.auth.getSession().then(({ data: { session }}) => {
-      if (session?.user?.id) {
-        supabase
-          .from('profiles')
-          .select('firstName')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => {
-            if (data?.firstName) setUserName(data.firstName);
-          });
-      }
-    });
+    const session = supabase.auth.session;
+    if (session?.user?.id) {
+      supabase
+        .from('profiles')
+        .select('firstName')
+        .eq('id', session.user.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.firstName) setUserName(data.firstName);
+        });
+    }
     return ''; // Initial empty state
   });
   const dataFetched = useRef(false);
   const recommendedDining = "John Jay";
   const { height } = useWindowDimensions();
-  const [jjsData, setJjsData] = useState({ use: null, capacity: 198 });
-  const [johnJayData, setJohnJayData] = useState({ use: null, capacity: 400 });
-  const [chefMikesData, setChefMikesData] = useState({ use: null, capacity: 171 });
-  const [ferrisData, setFerrisData] = useState({ use: null, capacity: 363 });
+  const [jjsData, setJjsData] = useState(() => {
+    const cached = localStorage.getItem('jjs_occupancy');
+    return cached ? JSON.parse(cached) : { use: null, capacity: 198 };
+  });
+  const [johnJayData, setJohnJayData] = useState(() => {
+    const cached = localStorage.getItem('johnjay_occupancy');
+    return cached ? JSON.parse(cached) : { use: null, capacity: 400 };
+  });
+  const [chefMikesData, setChefMikesData] = useState(() => {
+    const cached = localStorage.getItem('chefmikes_occupancy');
+    return cached ? JSON.parse(cached) : { use: null, capacity: 171 };
+  });
+  const [ferrisData, setFerrisData] = useState(() => {
+    const cached = localStorage.getItem('ferris_occupancy');
+    return cached ? JSON.parse(cached) : { use: null, capacity: 363 };
+  });
 
   // Add cache ref for occupancy data
   const occupancyCache = useRef({
@@ -86,30 +96,7 @@ export default function WelcomeScreen() {
     ferris: { data: null, lastFetched: 0 }
   });
 
-  // Load initial data from AsyncStorage
-  useEffect(() => {
-    const loadStoredData = async () => {
-      try {
-        const [jjs, johnJay, chefMikes, ferris] = await Promise.all([
-          AsyncStorage.getItem('jjs_occupancy'),
-          AsyncStorage.getItem('johnjay_occupancy'),
-          AsyncStorage.getItem('chefmikes_occupancy'),
-          AsyncStorage.getItem('ferris_occupancy'),
-        ]);
-
-        if (jjs) setJjsData(JSON.parse(jjs));
-        if (johnJay) setJohnJayData(JSON.parse(johnJay));
-        if (chefMikes) setChefMikesData(JSON.parse(chefMikes));
-        if (ferris) setFerrisData(JSON.parse(ferris));
-      } catch (error) {
-        console.error('Error loading stored data:', error);
-      }
-    };
-
-    loadStoredData();
-  }, []);
-
-  // Update fetchOccupancyWithCache to use AsyncStorage instead of localStorage
+  // Update fetchOccupancyWithCache to use localStorage
   const fetchOccupancyWithCache = async (id: number, capacity: number, setData: Function, location: LocationKey) => {
     const now = Date.now();
     const cache = occupancyCache.current[location];
@@ -134,13 +121,12 @@ export default function WelcomeScreen() {
             capacity: capacity
           };
 
-          // Update both memory cache and AsyncStorage
+          // Update both memory cache and localStorage
           occupancyCache.current[location] = {
             data: newData,
             lastFetched: now
           };
-          
-          await AsyncStorage.setItem(`${location}_occupancy`, JSON.stringify(newData));
+          localStorage.setItem(location, JSON.stringify(newData));
 
           if (!cache.data || cache.data.use !== newData.use) {
             setData(newData);
@@ -152,10 +138,10 @@ export default function WelcomeScreen() {
     }
   };
 
-  // Get initial session and set username in useEffect
+  // Single useEffect for auth and profile management
   useEffect(() => {
     async function initializeUser() {
-      if (dataFetched.current) return; // Keep the single-run check
+      if (dataFetched.current) return; // Only run once
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
