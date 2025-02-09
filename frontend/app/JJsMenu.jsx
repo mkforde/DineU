@@ -494,7 +494,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   stats:{
-    alignItems: "space-evenly",
+    alignItems: "center",
+    
     marginTop: 20,
     gap:10,
     marginBottom: 40,
@@ -508,7 +509,7 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   stat:{
-    
+    gap:40,
     flexDirection: "row", 
     justifyContent: "space-evenly",
 
@@ -598,14 +599,12 @@ overlay: {
    
   },
   capacityContainer: {
-    flexDirection: "column",
-    alignItems: "flex-start",
-    marginLeft: 20,
-  },
-  capacityText: {
+    flexDirection: "columns",
+    color: "#FFFFFF",
     fontSize: 13.56,
     fontWeight: "900",
-    marginBottom: 5,
+
+    
   },
   reviewsContainer: {
     backgroundColor: "#FDFECC",
@@ -637,6 +636,20 @@ overlay: {
     width: 18,
     height: 18,
     marginRight: 3,
+  },
+  capacityContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#423934",
   },
   foodTypeSection: {
     marginBottom: 20,

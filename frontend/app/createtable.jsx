@@ -119,11 +119,11 @@ export default function WelcomeScreen() {
               if (index % 2 === 0) rows.push([]);
               rows[rows.length - 1].push(hall);
               return rows;
-            }, []).map((row, i) => (
-              <View key={i} style={styles.diningRow}>
+            }, []).map((row, rowIndex) => (
+              <View key={`row-${rowIndex}`} style={styles.diningRow}>
                 {row.map(hall => (
                   <DiningButton
-                    key={hall.id}
+                    key={`dining-${hall.id}`}
                     title={hall.title}
                     image={hall.image}
                     use={ 0}

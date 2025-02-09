@@ -40,11 +40,14 @@ function CustomBottomNav() {
   );
 }
 
-const TableChatPreview = ({ title, lastMessage, time, unreadCount, isPrivate }) => (
-  <TouchableOpacity style={[
-    styles.chatPreview,
-    isPrivate && styles.privateChatOverlay
-  ]}>
+const TableChatPreview = ({ title, lastMessage, time, unreadCount, isPrivate, onPress }) => (
+  <TouchableOpacity 
+    style={[
+      styles.chatPreview,
+      isPrivate && styles.privateChatOverlay
+    ]}
+    onPress={onPress}
+  >
     <View style={styles.chatImageContainer}>
       <Image source={require("../assets/images/group_icon.png")} style={styles.tableIcon} />
       {isPrivate && (
@@ -77,95 +80,106 @@ const ChatRoom = ({ tableId, onClose }) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tableDetails, setTableDetails] = useState(null);
-  const [userUni, setUserUni] = useState(null);  // Add state for user's UNI
+  const [userUni, setUserUni] = useState(null);
   const scrollViewRef = useRef();
 
-  // Add function to get user's UNI
-  const getUserUni = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return null;
-
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('uni')
-        .eq('id', session.user.id)
-        .single();
-
-      if (error) throw error;
-      return profile?.uni;
-    } catch (error) {
-      console.error('Error getting user UNI:', error);
-      return null;
-    }
-  };
-
-  // Update useEffect to get UNI first
+  // Fetch messages and set up subscription
   useEffect(() => {
+    let subscription;
+
     const initialize = async () => {
-      const uni = await getUserUni();
-      console.log('Got UNI:', uni); // Debug log
-      if (uni) {
-        setUserUni(uni);
-        await fetchTableDetails();
-        await fetchMessages(); // Make sure this runs
-      } else {
-        alert('Could not get your UNI');
+      try {
+        // Get user's UNI first
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          alert('Please sign in to view messages');
+          onClose();
+          return;
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('uni')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profileError) throw profileError;
+        if (!profile?.uni) {
+          alert('Could not find your UNI');
+          onClose();
+          return;
+        }
+
+        setUserUni(profile.uni);
+
+        // Fetch table details
+        const { data: tableData, error: tableError } = await supabase
+          .from('dining_tables')
+          .select(`
+            *,
+            table_interests (
+              interest:interests (
+                name
+              )
+            )
+          `)
+          .eq('id', tableId)
+          .single();
+
+        if (tableError) throw tableError;
+        setTableDetails(tableData);
+
+        // Fetch message history
+        const { data: messageHistory, error: messageError } = await supabase
+          .from('table_messages')
+          .select(`
+            id,
+            message,
+            created_at,
+            sender_uni
+          `)
+          .eq('table_id', tableId)
+          .order('created_at', { ascending: true });
+
+        if (messageError) throw messageError;
+        setMessages(messageHistory || []);
+
+        // Set up real-time subscription
+        subscription = supabase
+          .channel(`table_messages_${tableId}`)
+          .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'table_messages',
+            filter: `table_id=eq.${tableId}`
+          }, (payload) => {
+            setMessages(current => [...current, payload.new]);
+            // Auto-scroll to bottom on new message
+            setTimeout(() => {
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+          })
+          .subscribe();
+
+        setLoading(false);
+      } catch (error) {
+        console.error('Error initializing chat:', error);
+        alert('Failed to load chat');
         onClose();
       }
     };
 
     initialize();
 
-    // Set up real-time subscription
-    const subscription = supabase
-      .channel(`table_messages_${tableId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'table_messages',
-        filter: `table_id=eq.${tableId}`
-      }, (payload) => {
-        console.log('New message received:', payload); // Debug log
-        setMessages(current => [...current, payload.new]);
-      })
-      .subscribe();
-
+    // Cleanup subscription on unmount
     return () => {
-      subscription.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
   }, [tableId]);
 
-  // Update fetchMessages to properly order and join with profiles
-  const fetchMessages = async () => {
-    if (!userUni) return;
-    
-    try {
-      console.log('Fetching messages for table:', tableId); // Debug log
-      
-      const { data: messages, error } = await supabase
-        .from('table_messages')
-        .select('*')  // Select all fields
-        .eq('table_id', tableId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-
-      console.log('Messages received:', messages); // Debug log
-      setMessages(messages || []);
-
-      // Mark as read in background
-      await supabase.rpc('mark_messages_read', {
-        p_table_id: tableId,
-        p_uni: userUni
-      });
-
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-    }
-  };
-
-  // Update sendMessage to use UNI
+  // Send message function
   const sendMessage = async () => {
     if (!message.trim() || !userUni) return;
 
@@ -178,35 +192,39 @@ const ChatRoom = ({ tableId, onClose }) => {
 
       if (error) throw error;
       setMessage('');
-      fetchMessages();
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Failed to send message');
     }
   };
 
-  // Add function to fetch table details
-  const fetchTableDetails = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('dining_tables')
-        .select(`
-          *,
-          table_interests (
-            interest:interests (
-              name
-            )
-          )
-        `)
-        .eq('id', tableId)
-        .single();
-
-      if (error) throw error;
-      setTableDetails(data);
-    } catch (error) {
-      console.error('Error fetching table details:', error);
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     }
-  };
+  }, [messages]);
+
+  if (loading) {
+    return (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={true}
+        onRequestClose={onClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.chatModal}>
+            <View style={styles.loadingContainer}>
+              <Text>Loading chat...</Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -352,18 +370,59 @@ export default function WelcomeScreen() {
         return;
       }
 
-      console.log('Fetching tables for UNI:', profile.uni);
-      const { data, error } = await supabase.rpc('get_user_tables', {
-        p_uni: profile.uni  // Use UNI instead of auth ID
-      });
+      // Modified query to ensure unique table entries
+      const { data, error } = await supabase
+        .from('dining_tables')
+        .select(`
+          id,
+          table_name,
+          privacy,
+          created_at,
+          created_by,
+          members!inner (uni)
+        `)
+        .eq('members.uni', profile.uni)
+        .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error from get_user_tables:', error);
+        console.error('Error fetching tables:', error);
         throw error;
       }
 
-      console.log('Tables returned:', data);
-      setUserTables(data || []);
+      // Transform the data to match your existing structure
+      const transformedData = data?.map(table => ({
+        table_id: table.id,
+        table_name: table.table_name,
+        created_at: table.created_at,
+        privacy: table.privacy,
+        is_owner: table.created_by === profile.uni,
+        last_message: null, // You may want to fetch this separately
+        last_message_time: null,
+        unread_count: 0 // You may want to fetch this separately
+      })) || [];
+
+      // Fetch additional message data if needed
+      const tablesWithMessages = await Promise.all(
+        transformedData.map(async (table) => {
+          const { data: messageData } = await supabase
+            .from('table_messages')
+            .select('message, created_at')
+            .eq('table_id', table.table_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          return {
+            ...table,
+            last_message: messageData?.message || null,
+            last_message_time: messageData?.created_at || null,
+            unread_count: 0 // Just set to 0 since we're not using read status
+          };
+        })
+      );
+
+      console.log('Transformed tables:', tablesWithMessages);
+      setUserTables(tablesWithMessages);
     } catch (error) {
       console.error('Error fetching tables:', error);
       alert('Failed to load your tables');
@@ -418,7 +477,7 @@ export default function WelcomeScreen() {
               ) : (
                 userTables.map((table) => (
                   <TableChatPreview
-                    key={`table-${table.table_id}-${table.created_at}`}
+                    key={`${table.table_id}-${table.created_at}`}
                     title={table.table_name}
                     lastMessage={table.last_message || 'No messages yet'}
                     time={table.last_message_time ? 
@@ -427,7 +486,6 @@ export default function WelcomeScreen() {
                     }
                     unreadCount={table.unread_count}
                     isPrivate={table.privacy === 'private'}
-                    isOwner={table.is_owner}
                     onPress={() => setActiveChatId(table.table_id)}
                   />
                 ))
@@ -770,5 +828,10 @@ const styles = StyleSheet.create({
   },
   myMessageText: {
     color: '#423934',
+  },
+  tableIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
 });
