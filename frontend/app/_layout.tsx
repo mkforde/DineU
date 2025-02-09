@@ -37,6 +37,10 @@ export default function RootLayout() {
       <Stack.Screen name="johnjaymeny" options={{ headerShown: true, title: "johnjaymenu" }} />
       <Stack.Screen name="jointable" options={{ headerShown: true, title: "jointable" }} />
       <Stack.Screen name="createtable" options={{ headerShown: true, title: "createtable" }} />
+      <Stack.Screen name="CreateTableStep2" options={{ headerShown: false }}/>
+      <Stack.Screen name="CreateTableStep3" options={{ headerShown: false }}/>
+      <Stack.Screen name="GenerateTable" options={{ headerShown: false }}/>
+      <Stack.Screen name="PrivateJohnJayLunch"options={{ headerShown: false }}/>
 
 
     </Stack>

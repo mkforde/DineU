@@ -1,13 +1,13 @@
-import React from "react";
-import { useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, ScrollView, useWindowDimensions, Animated  } from "react-native";
+import React, { useState } from "react";
+import { 
+  View, Text, Image, StyleSheet, TouchableOpacity, 
+  ScrollView, useWindowDimensions, Animated, TextInput 
+} from "react-native";
 import { useNavigation } from '@react-navigation/native';
 
-export function Selection() {
-  const [activeTab, setActiveTab] = useState(0);
+// Modified Selection component to be controlled by parent state
+export function Selection({ activeTab, onTabChange }) {
   const [pressedTab, setPressedTab] = useState(null);
-
-  // Animation value for press feedback
   const [pressAnimation] = useState(new Animated.Value(1));
 
   const handlePressIn = (index) => {
@@ -27,7 +27,7 @@ export function Selection() {
   };
 
   const handlePress = (index) => {
-    setActiveTab(index);
+    onTabChange(index); // Update the parent's activeTab state
   };
 
   const getTabStyle = (index) => {
@@ -46,8 +46,8 @@ export function Selection() {
   };
 
   return (
-    <View style={styles.container}>
-      {['Private','Public'].map((label, index) => (
+    <View style={styles.tabs}>
+      {['Private', 'Public'].map((label, index) => (
         <Animated.View 
           key={index}
           style={[
@@ -73,6 +73,7 @@ export function Selection() {
     </View>
   );
 }
+
 function CustomBottomNav() {
   const [activeTab, setActiveTab] = useState("table");
   const navigation = useNavigation();
@@ -110,81 +111,134 @@ function CustomBottomNav() {
   );
 }
 
-const TableChatPreview = ({ title, lastMessage, time, unreadCount, isPrivate }) => (
-  <TouchableOpacity style={[
-    styles.chatPreview,
-    isPrivate && styles.privateChatOverlay
-  ]}>
-    <View style={styles.chatImageContainer}>
-      <Image source={require("../assets/images/group_icon.png")} style={styles.tableIcon} />
-      {isPrivate && (
-        <View style={styles.lockContainer}>
-          <Image 
-            source={require("../assets/images/Lock.png")} 
-            style={styles.lockIcon}
-          />
-        </View>
-      )}
+// New component for private table search
+const PrivateTableSearch = () => {
+  const [pin, setPin] = useState('');
+  const [tableId, setTableId] = useState('');
+
+  return (
+    <View style={styles.privateSearchContainer}>
+      <Text style={styles.sectionTitle}>Enter Private Table Details</Text>
+     
+      <TextInput 
+        style={styles.input}
+        placeholder="PIN Code"
+        value={pin}
+        onChangeText={setPin}
+        keyboardType="numeric"
+        secureTextEntry
+        maxLength={4}
+      />
+      <TouchableOpacity style={styles.joinButton}>
+        <Text style={styles.joinButtonText}>Join Private Table</Text>
+      </TouchableOpacity>
     </View>
-    <View style={styles.chatInfo}>
-      <Text style={styles.chatTitle}>{title}</Text>
-      <Text style={styles.lastMessage} numberOfLines={1}>{lastMessage}</Text>
+  );
+};
+
+// Component for topic flair
+const TopicFlair = ({ topic }) => (
+  <View style={styles.flair}>
+    <Text style={styles.flairText}>{topic}</Text>
+  </View>
+);
+
+// Updated TableChatPreview component
+const TableChatPreview = ({ 
+  title, 
+  topics, 
+  currentSize, 
+  maxCapacity, 
+  location, 
+  time, 
+  onPress 
+}) => (
+  <TouchableOpacity 
+    style={styles.chatPreview}
+    onPress={onPress}
+  >
+    <View style={styles.chatHeader}>
+      <Image
+          source={require("../assets/images/group_icon.png")}
+        />
+      <View>
+        <Text style={styles.chatTitle}>{title}</Text>
+        <Text style={styles.locationText}>📍{location}</Text>
+      </View>
+      <View style={styles.capacityBadge}>
+        <Text style={styles.capacityText}>{currentSize}/{maxCapacity}</Text>
+      </View>
     </View>
-    <View style={styles.chatMeta}>
+    
+  
+    
+    <View style={styles.flairContainer}>
+      {topics.map((topic, index) => (
+        <TopicFlair key={index} topic={topic} />
+      ))}
+    </View>
+    
+    <View style={styles.chatFooter}>
       <Text style={styles.timeText}>{time}</Text>
-      {unreadCount > 0 && (
-        <View style={styles.unreadBadge}>
-          <Text style={styles.unreadText}>{unreadCount}</Text>
-        </View>
-      )}
+      <TouchableOpacity 
+        style={[
+          styles.joinButton, 
+          currentSize >= maxCapacity && styles.joinButtonDisabled
+        ]}
+        disabled={currentSize >= maxCapacity}
+      >
+        <Text style={styles.joinButtonText}>
+          {currentSize >= maxCapacity ? 'Full' : 'Join Table'}
+        </Text>
+      </TouchableOpacity>
     </View>
   </TouchableOpacity>
 );
 
 export default function WelcomeScreen() {
   const { height } = useWindowDimensions();
+  const [activeTab, setActiveTab] = useState(0); // 0: Private, 1: Public
+  const navigation = useNavigation();
 
-  // Sample data for table chats
+  // Sample data with topics and capacity
   const sampleTableChats = [
     {
       id: 1,
-      title: "Private John Jay Lunch",
-      lastMessage: "Password is jj2024",
-      time: "2m ago",
-      unreadCount: 3,
-      isPrivate: true
+      title: "JJ's Place Dinner",
+      location: "JJ's Place",
+      topics: ["Sports", "Casual", "First-Years"],
+      currentSize: 3,
+      maxCapacity: 6,
+      time: "Starting in 30min"
     },
     {
       id: 2,
-      title: "Secret Ferris Squad",
-      lastMessage: "Don't forget the secret knock",
-      time: "15m ago",
-      unreadCount: 0,
-      isPrivate: true
+      title: "International Students",
+      location: "Ferris Booth",
+      topics: ["International", "Cultural", "Language Exchange"],
+      currentSize: 4,
+      maxCapacity: 8,
+      time: "Starting in 1h"
     },
     {
       id: 3,
-      title: "JJ's Place Open Table",
-      lastMessage: "Anyone can join!",
-      time: "1h ago",
-      unreadCount: 5,
-      isPrivate: false
-    },
-    {
-      id: 4,
-      title: "Public Dinner Group",
-      lastMessage: "Meeting at 6pm today",
-      time: "2h ago",
-      unreadCount: 0,
-      isPrivate: false
+      title: "CS Study Group",
+      location: "John Jay",
+      topics: ["Academic", "Computer Science", "Study Group"],
+      currentSize: 2,
+      maxCapacity: 4,
+      time: "Starting now"
     }
   ];
 
-  // Sort chats to put private ones first
-  const sortedChats = [...sampleTableChats].sort((a, b) => {
-    if (a.isPrivate === b.isPrivate) return 0;
-    return a.isPrivate ? -1 : 1;
-  });
+  const handleJoinTable = (tableId) => {
+    // Handle joining the table
+    const table = sampleTableChats.find(t => t.id === tableId);
+    if (table && table.currentSize < table.maxCapacity) {
+      console.log(`Joining table ${tableId}`);
+      // Navigate to table chat or show join confirmation
+    }
+  };
 
   return (
     <View style={styles.body}>
@@ -193,24 +247,25 @@ export default function WelcomeScreen() {
           <View style={styles.top}>
             <Text style={styles.title}>Join a table</Text>
           </View>
-          <Selection></Selection>
+          {/* Pass the activeTab state and update function to Selection */}
+          <Selection activeTab={activeTab} onTabChange={setActiveTab} />
 
-
-          <View style={styles.tableChatsSection}>
-            <Text style={styles.notif}>Table Chats</Text>
-            <View style={styles.chatsContainer}>
-              {sortedChats.map(chat => (
-                <TableChatPreview
-                  key={chat.id}
-                  title={chat.title}
-                  lastMessage={chat.lastMessage}
-                  time={chat.time}
-                  unreadCount={chat.unreadCount}
-                  isPrivate={chat.isPrivate}
-                />
-              ))}
+          {activeTab === 0 ? (
+            <PrivateTableSearch />
+          ) : (
+            <View style={styles.tableChatsSection}>
+              <Text style={styles.notif}>Available Tables</Text>
+              <View style={styles.chatsContainer}>
+                {sampleTableChats.map(chat => (
+                  <TableChatPreview
+                    key={chat.id}
+                    {...chat}
+                    onPress={() => handleJoinTable(chat.id)}
+                  />
+                ))}
+              </View>
             </View>
-          </View>
+          )}
         </ScrollView>
       </View>
       <CustomBottomNav />
@@ -265,8 +320,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginLeft: 20,
   },
-  
-  // Modified and new styles for table chats
+  // Styles for table chats
   tableChatsSection: {
     flex: 1,
   },
@@ -274,88 +328,77 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   chatPreview: {
-    flexDirection: 'row',
-    padding: 15,
-    backgroundColor: "#FDFECC",
-    borderRadius: 10,
-    marginBottom: 10,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  privateChatOverlay: {
-    backgroundColor: '#E7EE71',
-    position: 'relative',
-    // Add semi-transparent overlay
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 0,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 0,
-    elevation: 1,
-  },
-  chatImageContainer: {
-    position: 'relative',
-    marginRight: 15,
-  },
- 
-  lockContainer: {
-    position: 'absolute',
-    bottom: -5,
-    right: -5,
-    backgroundColor: '#E15C11',
+    backgroundColor: '#F2F1BB',
     borderRadius: 12,
-    width: 24,
-    height: 24,
+    padding: 16,
+    marginBottom: 12,
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lockIcon: {
-    width: 14,
-    height: 14,
-    tintColor: '#FFFFFF',
-  },
-  chatInfo: {
-    flex: 1,
+    marginBottom: 8,
   },
   chatTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#423934',
-    marginBottom: 4,
   },
-  lastMessage: {
+  capacityBadge: {
+    backgroundColor: '#E7EE71',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  capacityText: {
     fontSize: 14,
-    color: '#8D7861',
+    color: '#423934',
+    fontWeight: '500',
   },
-  chatMeta: {
-    alignItems: 'flex-end',
+  locationText: {
+    fontSize: 14,
+    color: '#655548',
+    marginBottom: 8,
+  },
+  flairContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  flair: {
+    backgroundColor: '#DAFC08',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  flairText: {
+    fontSize: 12,
+    color: '#423934',
+    fontWeight: '500',
+  },
+  chatFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
   },
   timeText: {
     fontSize: 12,
     color: '#8D7861',
-    marginBottom: 5,
   },
-  unreadBadge: {
+  joinButton: {
     backgroundColor: '#E15C11',
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
-  unreadText: {
+  joinButtonDisabled: {
+    backgroundColor: '#CCCCCC',
+  },
+  joinButtonText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
   tabBase: {
@@ -388,5 +431,29 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: 'black',
     fontWeight: '500',
-  }
+  },
+  tabs: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  privateSearchContainer: {
+    padding: 20,
+  },
+  input: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    fontSize: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#423934',
+    marginBottom: 16,
+  },
+  activeIcon: {
+    tintColor: '#E15C11',
+  },
 });
