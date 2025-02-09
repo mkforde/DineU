@@ -1,38 +1,22 @@
-import React from "react";
-import { useState } from 'react';
+import React, { useState, useEffect } from "react";
 import { View, Text, Image, StyleSheet, ImageBackground, TouchableOpacity, Dimensions, ScrollView, useWindowDimensions} from "react-native";
 import { useNavigation } from '@react-navigation/native';
-
-
-
-
-
+import { supabase } from '../lib/supabase';
 
 export default function menu() {
   const navigation = useNavigation(); // Initialize navigation
+  const [menuItems, setMenuItems] = useState({});
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [occupancyData, setOccupancyData] = useState(() => {
+    const cached = localStorage.getItem('chefdons_occupancy');
+    return cached ? JSON.parse(cached) : { use: 30, capacity: 60 };
+  });
 
-  const menuItems = [
-    { 
-      name: "Grilled Chicken", 
-      calories: 350, 
-      dietary: ["Halal", "GlutenFree"] 
-    },
-    { 
-      name: "Vegan Salad", 
-      calories: 200, 
-      dietary: ["Vegan", "GlutenFree"] 
-    },
-    { 
-      name: "Cheeseburger", 
-      calories: 550, 
-      dietary: ["Vegan"] 
-    },
-  ];
   const reviews = [
     { name: "Alice", rating: 5, comment: "Delicious! Highly recommend." },
     { name: "John", rating: 4, comment: "Tasty but a bit salty." },
-    { name: "Emma", rating: 3, comment: "Average, not the best I’ve had." },
-    { name: "Mike", rating: 2, comment: "Not great, wouldn’t order again." },
+    { name: "Emma", rating: 3, comment: "Average, not the best I've had." },
+    { name: "Mike", rating: 2, comment: "Not great, wouldn't order again." },
     { name: "Chris", rating: 1, comment: "Terrible. Avoid at all costs." },
   ];
   
@@ -62,11 +46,11 @@ export default function menu() {
     return stars;
   };
   
-  
   const dietIcons = {
-    Halal: require("../assets/images/Halal.png"),
-    Vegan: require("../assets/images/Vegan.png"),
-    GlutenFree: require("../assets/images/Gluten_Free.png"),
+    'Vegan': require("../assets/images/Vegan.png"),
+    'Vegetarian': require("../assets/images/Vegan.png"),
+    'Halal': require("../assets/images/Halal.png"),
+    'Gluten Free': require("../assets/images/Gluten_Free.png")
   };
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(null);
@@ -111,7 +95,142 @@ export default function menu() {
        </TouchableOpacity>
      );
    };
- 
+
+  // Fetch menu and nutrition data from cache
+  useEffect(() => {
+    async function fetchMenuData() {
+      try {
+        setMenuLoading(true);
+        
+        // Get menu items from cache
+        const { data: menuData, error: menuError } = await supabase
+          .from('menu_cache')
+          .select('*')
+          .eq('diningHall', "Chef Don's")
+          .order('foodType');
+
+        if (menuError) {
+          console.error('Error fetching menu:', menuError);
+          return;
+        }
+
+        // Get nutrition data from cache
+        const { data: nutritionData, error: nutritionError } = await supabase
+          .from('nutrition_cache')
+          .select('*')
+          .eq('dining_hall', "Chef Don's");
+
+        if (nutritionError) {
+          console.error('Error fetching nutrition:', nutritionError);
+        }
+
+        // Organize menu items by meal type and food type
+        const organizedMenu = menuData.reduce((acc, item) => {
+          // Create meal type section if it doesn't exist
+          if (!acc[item.mealType]) {
+            acc[item.mealType] = {};
+          }
+          
+          // Create food type section if it doesn't exist
+          if (!acc[item.mealType][item.foodType]) {
+            acc[item.mealType][item.foodType] = [];
+          }
+
+          // Find nutrition data for this item
+          const nutrition = nutritionData?.find(n => n.meal_name === item.foodName);
+
+          // Add item with its nutrition data
+          acc[item.mealType][item.foodType].push({
+            ...item,
+            // Ensure dietaryPreferences is a string
+            dietaryPreferences: typeof item.dietaryPreferences === 'string' 
+              ? item.dietaryPreferences 
+              : JSON.stringify(item.dietaryPreferences),
+            // Ensure contains is a string
+            contains: typeof item.contains === 'string'
+              ? item.contains
+              : JSON.stringify(item.contains),
+            nutrition: nutrition?.nutrition_data || {}
+          });
+
+          return acc;
+        }, {});
+
+        setMenuItems(organizedMenu);
+        setMenuLoading(false);
+      } catch (error) {
+        console.error('Error loading menu data:', error);
+        setMenuLoading(false);
+      }
+    }
+
+    fetchMenuData();
+  }, []);
+
+  // Update menu rendering
+  const renderMenu = () => {
+    if (menuLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading menu...</Text>
+        </View>
+      );
+    }
+
+    // Combine all items across meal types and organize by food type
+    const foodTypes = {};
+    Object.values(menuItems).forEach(mealPeriod => {
+      Object.entries(mealPeriod).forEach(([foodType, items]) => {
+        if (!foodTypes[foodType]) {
+          foodTypes[foodType] = [];
+        }
+        foodTypes[foodType].push(...items);
+      });
+    });
+
+    return Object.entries(foodTypes).map(([foodType, items]) => (
+      <View key={foodType} style={styles.foodTypeSection}>
+        <Text style={styles.foodTypeTitle}>{foodType}</Text>
+        
+        {items.map((item, index) => (
+          <View key={index} style={styles.menuItem}>
+            <View style={styles.menuItemLeft}>
+              <Text style={styles.menuItemName}>{item.foodName}</Text>
+              {item.nutrition?.calories && (
+                <Text style={styles.calories}>{item.nutrition.calories} cal</Text>
+              )}
+              {item.contains && item.contains.length > 0 && (
+                <Text style={styles.allergens}>
+                  Contains: {item.contains.replace(/[{}]/g, '').split(',').join(', ')}
+                </Text>
+              )}
+            </View>
+            <View style={styles.dietaryIcons}>
+              {item.dietaryPreferences && 
+                (typeof item.dietaryPreferences === 'string' 
+                  ? item.dietaryPreferences
+                  : JSON.stringify(item.dietaryPreferences))
+                  .replace(/[{}"\[\]]/g, '')
+                  .split(',')
+                  .filter(pref => pref && pref.trim().length > 0)
+                  .map((diet, i) => {
+                    const cleanDiet = diet.trim();
+                    return dietIcons[cleanDiet] && (
+                      <Image 
+                        key={i} 
+                        source={dietIcons[cleanDiet]} 
+                        style={styles.dietaryIcon} 
+                      />
+                    );
+                  })
+              }
+            </View>
+          </View>
+        ))}
+      </View>
+    ));
+  };
+
   return (
   
   <View style = {styles.body}>
@@ -155,25 +274,7 @@ export default function menu() {
           <View  style={styles.menuTitle}>
             <Text style={styles.titleM}>Menu</Text>
           </View>
-          <View style={styles.menuContainer}>
-            {menuItems.map((item, index) => (
-              <View key={index} style={styles.menuItem}>
-                <View>
-                  <Text style={styles.menuItemName}>{item.name}</Text>
-                  <Text style={styles.menuItemCalories}>{item.calories} kcal</Text>
-                </View>
-                <View style={styles.dietaryIcons}>
-                  {item.dietary.map((diet, i) => (
-                    <Image 
-                      key={i} 
-                      source={dietIcons[diet]} 
-                      style={styles.dietaryIcon} 
-                    />
-                  ))}
-                </View>
-              </View>
-            ))}
-          </View>
+          {renderMenu()}
           <View style={styles.reviewsContainer}>
             <Text style={styles.sectionTitle}>Reviews</Text>
             {reviews.map((review, index) => (
@@ -411,5 +512,34 @@ overlay: {
     width: 18,
     height: 18,
     marginRight: 3,
-  }
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  foodTypeSection: {
+    marginBottom: 20,
+  },
+  foodTypeTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  menuItemLeft: {
+    flex: 1,
+  },
+  calories: {
+    fontSize: 14,
+    color: '#8D7861',
+  },
+  allergens: {
+    fontSize: 14,
+    color: '#8D7861',
+  },
 });
