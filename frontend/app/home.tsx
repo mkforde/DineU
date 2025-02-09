@@ -690,7 +690,7 @@ export default function WelcomeScreen() {
             <Text style={styles.title}>
               Hey {userName || 'there'}
             </Text>
-            <Text style={styles.desc}>Today's Recommended Dining Hall is ... <Text style={styles.bold}>{recommendedDining}</Text>!</Text>
+            <Text style={styles.desc}>Today's Recommended Dining Hall is <Text style={styles.bold}>{recommendedDining}</Text></Text>
           </View>
           <View style = {styles.image1}>
             <Image source={require("../assets/images/Animal Avatar.png")}/>
