@@ -251,6 +251,7 @@ const TopicFlair = ({ topic }) => (
 
 // Updated TableChatPreview component
 const TableChatPreview = ({ 
+  id,
   title, 
   topics, 
   currentSize, 
@@ -261,12 +262,11 @@ const TableChatPreview = ({
 }) => (
   <TouchableOpacity 
     style={styles.chatPreview}
-    onPress={onPress}
   >
     <View style={styles.chatHeader}>
       <Image
-          source={require("../assets/images/group_icon.png")}
-        />
+        source={require("../assets/images/group_icon.png")}
+      />
       <View>
         <Text style={styles.chatTitle}>{title}</Text>
         <Text style={styles.locationText}>📍{location}</Text>
@@ -275,8 +275,6 @@ const TableChatPreview = ({
         <Text style={styles.capacityText}>{currentSize}/{maxCapacity}</Text>
       </View>
     </View>
-    
-  
     
     <View style={styles.flairContainer}>
       {topics.map((topic, index) => (
@@ -292,6 +290,7 @@ const TableChatPreview = ({
           currentSize >= maxCapacity && styles.joinButtonDisabled
         ]}
         disabled={currentSize >= maxCapacity}
+        onPress={() => onPress(id)}
       >
         <Text style={styles.joinButtonText}>
           {currentSize >= maxCapacity ? 'Full' : 'Join Table'}
@@ -374,6 +373,8 @@ export default function WelcomeScreen() {
   // Now handleJoinTable can access fetchPublicTables
   const handleJoinTable = async (tableId: number) => {
     try {
+      setLoading(true); // Add loading state while joining
+
       // Get current user's session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
@@ -398,20 +399,37 @@ export default function WelcomeScreen() {
         return;
       }
 
+      // Check if user is already in the table
+      const { data: existingMember, error: memberCheckError } = await supabase
+        .from('members')
+        .select('*')
+        .eq('table_id', tableId)
+        .eq('uni', profile.uni)
+        .single();
+
+      if (existingMember) {
+        alert('You are already a member of this table!');
+        navigation.navigate('table'); // Navigate to tables screen
+        return;
+      }
+
       // Use the stored procedure to join the table
-      const { error } = await supabase.rpc('join_table', {
+      const { error: joinError } = await supabase.rpc('join_table', {
         p_table_id: tableId,
         p_uni: profile.uni
       });
 
-      if (error) throw error;
+      if (joinError) throw joinError;
 
-      // Now we can call fetchPublicTables
-      await fetchPublicTables();
+      alert('Successfully joined the table!');
+      navigation.navigate('table'); // Navigate to tables screen
 
     } catch (error) {
       console.error('Error joining table:', error);
       alert('Failed to join table. Please try again.');
+    } finally {
+      setLoading(false);
+      fetchPublicTables(); // Refresh the tables list
     }
   };
 
@@ -439,8 +457,14 @@ export default function WelcomeScreen() {
                   publicTables.map(table => (
                     <TableChatPreview
                       key={table.id}
-                      {...table}
-                      onPress={() => handleJoinTable(table.id)}
+                      id={table.id}
+                      title={table.title}
+                      topics={table.topics}
+                      currentSize={table.currentSize}
+                      maxCapacity={table.maxCapacity}
+                      location={table.location}
+                      time={table.time}
+                      onPress={handleJoinTable}
                     />
                   ))
                 )}

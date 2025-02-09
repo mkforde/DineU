@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   stats:{
-    alignItems: "space-evenly",
+    alignItems: "center",
     marginTop: 20,
     gap:10,
     marginBottom: 40,
@@ -449,6 +449,7 @@ const styles = StyleSheet.create({
     
     flexDirection: "row", 
     justifyContent: "space-evenly",
+    gap:30,
 
   },
   nutri:{

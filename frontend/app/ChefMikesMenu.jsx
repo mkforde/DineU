@@ -46,4 +46,6 @@ useEffect(() => {
   fetchOccupancyWithCache();
   const interval = setInterval(fetchOccupancyWithCache, 30000);
   return () => clearInterval(interval);
-}, []); 
+}, []);
+
+export default ChefMikesMenu; 
