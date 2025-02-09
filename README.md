@@ -8,7 +8,7 @@
 
 ## 🎥 Demo
 
-[Watch Demo Video](https://youtu.be/demo-link) <!-- Replace with actual demo link -->
+[Watch Demo Video](https://youtu.be/AfYKsCUvVpM?si=phlc6YfnE5gncHD5)
 
 ## 🌟 Overview
 
@@ -87,4 +87,3 @@ npx expo start
 - **Michael** - [portfolio](https://michaelforde.com)
 - **Mohammed** -
 - **Alice** -
-
