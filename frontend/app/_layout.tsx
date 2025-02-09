@@ -49,14 +49,20 @@ export default function RootLayout() {
     <Stack>
       <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="index" options={{ headerShown: true }} />
-      <Stack.Screen name="table" options={{ headerShown: true, title: "table" }} />
-      <Stack.Screen name="location" options={{ headerShown: true, title: "location" }} />
-      <Stack.Screen name="home" options={{ headerShown: true, title: "home" }} />
-      <Stack.Screen name="profile" options={{ headerShown: true, title: "profile" }} />
-      <Stack.Screen name="johnjaymeny" options={{ headerShown: true, title: "johnjaymenu" }} />
-      <Stack.Screen name="jointable" options={{ headerShown: true, title: "jointable" }} />
-      <Stack.Screen name="createtable" options={{ headerShown: true, title: "createtable" }} />
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="table" options={{ headerShown: false, title: "table" }} />
+      <Stack.Screen name="location" options={{ headerShown: false, title: "location" }} />
+      <Stack.Screen name="home" options={{ headerShown: false, title: "home" }} />
+      <Stack.Screen name="profile" options={{ headerShown: false, title: "profile" }} />
+      <Stack.Screen name="johnjaymeny" options={{ headerShown: false, title: "johnjaymenu" }} />
+      <Stack.Screen name="jointable" options={{ headerShown: false, title: "jointable" }} />
+      <Stack.Screen name="createtable" options={{ headerShown: false, title: "createtable" }} />
+      <Stack.Screen name="CreateTableStep2" options={{ headerShown: false }}/>
+      <Stack.Screen name="CreateTableStep3" options={{ headerShown: false }}/>
+      <Stack.Screen name="GenerateTable" options={{ headerShown: false }}/>
+      <Stack.Screen name="PrivateJohnJayLunch"options={{ headerShown: false }}/>
+
+
     </Stack>
   );
 }
