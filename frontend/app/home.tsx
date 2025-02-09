@@ -55,17 +55,18 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const [userName, setUserName] = useState(() => {
     // Initialize name synchronously if possible
-    const session = supabase.auth.session;
-    if (session?.user?.id) {
-      supabase
-        .from('profiles')
-        .select('firstName')
-        .eq('id', session.user.id)
-        .single()
-        .then(({ data }) => {
-          if (data?.firstName) setUserName(data.firstName);
-        });
-    }
+    supabase.auth.getSession().then(({ data: { session }}) => {
+      if (session?.user?.id) {
+        supabase
+          .from('profiles')
+          .select('firstName')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data }) => {
+            if (data?.firstName) setUserName(data.firstName);
+          });
+      }
+    });
     return ''; // Initial empty state
   });
   const dataFetched = useRef(false);
@@ -138,10 +139,10 @@ export default function WelcomeScreen() {
     }
   };
 
-  // Single useEffect for auth and profile management
+  // Get initial session and set username in useEffect
   useEffect(() => {
     async function initializeUser() {
-      if (dataFetched.current) return; // Only run once
+      if (dataFetched.current) return; // Keep the single-run check
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
