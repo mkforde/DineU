@@ -1,103 +1,152 @@
 import pandas as pd
 import requests
 import time
+from typing import List, Dict
+import sys
+import json
+from fuzzywuzzy import fuzz
+from pathlib import Path
 
 #############################
 # Configuration
 #############################
-INPUT_CSV = "meals.csv"  # Input CSV file with columns: dining_hall, meal_name
-OUTPUT_CSV = "meals_with_nutrients_and_health.csv"  # Enriched meals data output
-DINING_AVERAGES_CSV = "dining_hall_averages.csv"      # Dining hall averages output
-
-# Nutritionix API credentials (replace these with your actual credentials)
+#  API credentials
 APP_ID = "331d658b"
 APP_KEY = "0e9c27886b9ace084e367677fbe2c73c"
 
-# Reference values for normalization (adjust as needed)
-MAX_CALORIES = 1500.0       # Upper bound for calories
-REFERENCE_PROTEIN = 50.0    # Reference protein (grams)
-REFERENCE_CARBS = 150.0     # Reference total carbohydrate (grams)
-REFERENCE_FAT = 70.0        # Reference total fat (grams)
+# Reference values for normalization
+MAX_CALORIES = 1500.0
+REFERENCE_PROTEIN = 50.0
+REFERENCE_CARBS = 150.0
+REFERENCE_FAT = 70.0
 
-#############################
-# Nutritionix API Function
-#############################
-def get_nutrients_from_nutritionix(query, app_id, app_key):
-    """
-    Sends a query to the Nutritionix API to get nutritional information for a food or meal.
-    
-    Parameters:
-      - query (str): A description of the food (e.g., "Grilled Chicken Salad")
-      - app_id (str): Your Nutritionix App ID.
-      - app_key (str): Your Nutritionix App Key.
-    
-    Returns:
-      A dictionary with the following keys:
-        - calories: total calories plus 200 extra calories (for extraneous variables)
-        - protein: total protein in grams
-        - total_carbohydrate: total carbohydrate in grams
-        - total_fat: total fat in grams
-        
-      If the request fails, returns None.
-    """
+# Database configuration
+NUTRITIONIX_DB = "nutritionix_db.json"
+FUZZY_MATCH_THRESHOLD = 85
+
+def get_nutrients_from_nutritionix(query: str) -> Dict:
+    """Get nutritional information from Nutritionix API"""
     url = "https://trackapi.nutritionix.com/v2/natural/nutrients"
     headers = {
         "Content-Type": "application/json",
-        "x-app-id": app_id,
-        "x-app-key": app_key,
+        "x-app-id": APP_ID,
+        "x-app-key": APP_KEY,
+        "x-remote-user-id": "0"
     }
     data = {"query": query}
     
     try:
         response = requests.post(url, json=data, headers=headers)
+        print(f"Querying Nutritionix for: {query}", file=sys.stderr)
+        sys.stderr.flush()
+        
+        if response.status_code == 200:
+            result = response.json()
+            foods = result.get("foods", [])
+            
+            if foods:
+                food = foods[0]
+                return {
+                    "calories": food.get("nf_calories", 0),
+                    "protein": food.get("nf_protein", 0),
+                    "total_carbohydrate": food.get("nf_total_carbohydrate", 0),
+                    "total_fat": food.get("nf_total_fat", 0)
+                }
     except Exception as e:
-        print(f"Request failed for query '{query}': {e}")
-        return None
+        print(f"Error querying Nutritionix for {query}: {e}", file=sys.stderr)
+        sys.stderr.flush()
+    
+    return None
 
-    if response.status_code == 200:
-        result = response.json()
-        foods = result.get("foods", [])
+def get_or_create_nutrition_db(menu_items: List[Dict]) -> Dict:
+    """Get nutrition database or create it if doesn't exist"""
+    # Try to load existing database
+    if Path(NUTRITIONIX_DB).exists():
+        try:
+            with open(NUTRITIONIX_DB) as f:
+                db = json.load(f)
+                print(f"Loaded nutrition database with {len(db['meals'])} meals", file=sys.stderr)
+                return db['meals']
+        except Exception as e:
+            print(f"Error loading nutrition database: {e}", file=sys.stderr)
+    
+    # Create new database from menu items
+    print("Building new nutrition database...", file=sys.stderr)
+    nutrition_db = {}
+    
+    # Get unique meals
+    unique_meals = set()
+    for item in menu_items:
+        # Log the item structure to debug
+        print(f"Processing menu item: {item}", file=sys.stderr)
         
-        total_calories = 0.0
-        total_protein = 0.0
-        total_carbs = 0.0
-        total_fat = 0.0
-        
-        for food in foods:
-            total_calories += food.get("nf_calories", 0)
-            total_protein += food.get("nf_protein", 0)
-            total_carbs += food.get("nf_total_carbohydrate", 0)
-            total_fat += food.get("nf_total_fat", 0)
-        
-        # Add 200 extra calories for extraneous variables.
-        total_calories += 200
-        
-        return {
-            "calories": total_calories,
-            "protein": total_protein,
-            "total_carbohydrate": total_carbs,
-            "total_fat": total_fat
-        }
-    else:
-        print(f"Error {response.status_code} for query '{query}': {response.text}")
-        return None
+        if (item.get('meal_name') and  # Use get() to avoid KeyError
+            item['meal_name'] != "Closed" and 
+            item['meal_name'] != "No items available" and 
+            item.get('dining_hall') is not None):
+            unique_meals.add(item['meal_name'])
+    
+    print(f"Found {len(unique_meals)} unique meals to process", file=sys.stderr)
+    sys.stderr.flush()
+    
+    # Get nutrition data for each unique meal
+    for meal in unique_meals:
+        if meal not in nutrition_db:
+            nutrients = get_nutrients_from_nutritionix(meal)
+            if nutrients:
+                nutrition_db[meal] = nutrients
+                time.sleep(0.5)  # Rate limiting
+            else:
+                print(f"No nutrients found for {meal}, using defaults", file=sys.stderr)
+                nutrition_db[meal] = {
+                    "calories": 250,
+                    "protein": 8,
+                    "total_carbohydrate": 30,
+                    "total_fat": 10
+                }
+    
+    # Save database
+    try:
+        with open(NUTRITIONIX_DB, 'w') as f:
+            json.dump({
+                "meals": nutrition_db,
+                "metadata": {
+                    "last_updated": time.strftime("%Y-%m-%d"),
+                    "version": "1.0",
+                    "source": "Nutritionix API"
+                }
+            }, f, indent=2)
+        print(f"Saved nutrition database with {len(nutrition_db)} meals", file=sys.stderr)
+    except Exception as e:
+        print(f"Error saving nutrition database: {e}", file=sys.stderr)
+    
+    return nutrition_db
 
-#############################
-# Health Score Computation
-#############################
+def process_menu_data(menu_items: List[Dict]) -> pd.DataFrame:
+    """Convert menu items from scraper into DataFrame format"""
+    rows = []
+    print("\nProcessing menu items:", file=sys.stderr)
+    for item in menu_items:
+        # Log each item being processed
+        print(f"Item: {item}", file=sys.stderr)
+        
+        if (item.get('meal_name') and  # Use get() to avoid KeyError
+            item['meal_name'] != "Closed" and 
+            item['meal_name'] != "No items available" and 
+            item.get('dining_hall') is not None):
+            rows.append({
+                'dining_hall': item['dining_hall'],
+                'meal_name': item['meal_name']
+            })
+    
+    df = pd.DataFrame(rows)
+    print(f"\nCreated DataFrame with {len(df)} rows", file=sys.stderr)
+    print("Sample of DataFrame:", file=sys.stderr)
+    print(df.head(), file=sys.stderr)
+    return df
+
 def compute_meal_health(row):
-    """
-    Computes a meal health score using nutrient data from a row.
-    Each component is normalized and capped between 0 and 1.
-    
-    Components:
-      - Normalized calories: (MAX_CALORIES - calories) / MAX_CALORIES
-      - Normalized protein: protein / REFERENCE_PROTEIN
-      - Normalized carbohydrate: 1 - (total_carbohydrate / REFERENCE_CARBS)
-      - Normalized fat: 1 - (total_fat / REFERENCE_FAT)
-    
-    The overall meal health score is the average of these four components.
-    """
+    """Compute health score for a meal"""
     norm_calories = (MAX_CALORIES - row["calories"]) / MAX_CALORIES
     norm_calories = max(0, min(norm_calories, 1))
     
@@ -110,79 +159,94 @@ def compute_meal_health(row):
     norm_fat = 1 - (row["total_fat"] / REFERENCE_FAT)
     norm_fat = max(0, min(norm_fat, 1))
     
-    meal_health = (norm_calories + norm_protein + norm_carbs + norm_fat) / 4.0
-    return meal_health
+    return (norm_calories + norm_protein + norm_carbs + norm_fat) / 4.0
 
-#############################
-# Main Function
-#############################
-def main():
-    input_csv = INPUT_CSV
-    output_csv = OUTPUT_CSV
+def analyze_meals(menu_items: List[Dict]):
+    """Analyze nutritional content of menu items"""
+    # Get or create nutrition database
+    nutrition_db = get_or_create_nutrition_db(menu_items)
     
-    # Load the meals dataset.
-    try:
-        df = pd.read_csv(input_csv)
-    except Exception as e:
-        print(f"Error loading CSV file '{input_csv}': {e}")
-        return
+    # Process menu items
+    df = process_menu_data(menu_items)
+    print(f"Processing {len(df)} meals across {len(df['dining_hall'].unique())} dining halls", file=sys.stderr)
     
-    # Check that required columns exist.
-    required_columns = ["dining_hall", "meal_name"]
-    for col in required_columns:
-        if col not in df.columns:
-            print(f"CSV file is missing required column: {col}")
-            return
-
-    # Prepare lists to hold nutrient values.
-    calorie_values = []
-    protein_values = []
-    carbs_values = []
-    fat_values = []
+    # Add nutritional information
+    print("Adding nutritional information to meals...", file=sys.stderr)
+    for idx, row in df.iterrows():
+        meal_name = row['meal_name']
+        nutrients = nutrition_db.get(meal_name)
+        
+        if not nutrients:
+            # Try fuzzy matching
+            best_match = None
+            best_score = 0
+            for db_meal in nutrition_db:
+                score = fuzz.ratio(meal_name.lower(), db_meal.lower())
+                if score > best_score and score >= FUZZY_MATCH_THRESHOLD:
+                    best_score = score
+                    best_match = db_meal
+            
+            if best_match:
+                nutrients = nutrition_db[best_match]
+                print(f"Matched '{meal_name}' with '{best_match}'", file=sys.stderr)
+            else:
+                nutrients = {
+                    "calories": 250,
+                    "protein": 8,
+                    "total_carbohydrate": 30,
+                    "total_fat": 10
+                }
+                print(f"No match found for {meal_name}, using defaults", file=sys.stderr)
+        
+        df.loc[idx, 'calories'] = nutrients['calories']
+        df.loc[idx, 'protein'] = nutrients['protein']
+        df.loc[idx, 'total_carbohydrate'] = nutrients['total_carbohydrate']
+        df.loc[idx, 'total_fat'] = nutrients['total_fat']
     
-    print("Querying Nutritionix API for each meal...")
-    for index, row in df.iterrows():
-        meal_name = row["meal_name"]
-        query = meal_name  # You can add more context to the query if desired.
-        nutrients = get_nutrients_from_nutritionix(query, APP_ID, APP_KEY)
-        if nutrients is None:
-            nutrients = {"calories": 0, "protein": 0, "total_carbohydrate": 0, "total_fat": 0}
-        calorie_values.append(nutrients["calories"])
-        protein_values.append(nutrients["protein"])
-        carbs_values.append(nutrients["total_carbohydrate"])
-        fat_values.append(nutrients["total_fat"])
-        print(f"Meal: {meal_name} -> Calories: {nutrients['calories']}, Protein: {nutrients['protein']}g, Carbs: {nutrients['total_carbohydrate']}g, Fat: {nutrients['total_fat']}g")
-        time.sleep(1)  # Pause 1 second to avoid hitting API rate limits.
+    # Compute health scores
+    print("Computing health scores...", file=sys.stderr)
+    df['meal_health'] = df.apply(compute_meal_health, axis=1)
     
-    # Add nutrient data as new columns.
-    df["calories"] = calorie_values
-    df["protein"] = protein_values
-    df["total_carbohydrate"] = carbs_values
-    df["total_fat"] = fat_values
+    # Log meal counts per dining hall
+    print("\nMeal counts per dining hall:", file=sys.stderr)
+    meal_counts = df.groupby('dining_hall').size()
+    for hall, count in meal_counts.items():
+        print(f"{hall}: {count} meals", file=sys.stderr)
     
-    # Compute the meal health score for each meal.
-    df["meal_health"] = df.apply(compute_meal_health, axis=1)
-    
-    # Save the updated meal data to a new CSV file.
-    df.to_csv(output_csv, index=False)
-    print(f"\nUpdated meal data with nutrient and health information has been written to '{output_csv}'")
-    
-    # Compute average nutrients and average meal health by dining hall.
-    avg_nutrients = df.groupby("dining_hall").agg({
-        "calories": "mean",
-        "protein": "mean",
-        "total_carbohydrate": "mean",
-        "total_fat": "mean",
-        "meal_health": "mean"
-    }).reset_index()
-    
-    avg_nutrients = avg_nutrients.round(2)
-    print("\nAverage Nutrients and Health Score by Dining Hall:")
-    print(avg_nutrients)
-    
-    # Save the dining hall averages to a new CSV file.
-    avg_nutrients.to_csv("dining_hall_averages.csv", index=False)
-    print("\nDining hall averages have been written to 'dining_hall_averages.csv'")
+    # Pass full meal data to recommender
+    return {
+        'meals_data': df.to_dict(orient='records'),
+        'dining_averages': df.to_dict(orient='records')  # Pass full data instead of averages
+    }
 
 if __name__ == "__main__":
-    main()
+    try:
+        print("meals.py starting...", file=sys.stderr)
+        sys.stderr.flush()
+        
+        # Read input from stdin
+        input_data = sys.stdin.read()
+        print(f"Received input data length: {len(input_data)}", file=sys.stderr)
+        sys.stderr.flush()
+        
+        # Parse menu items
+        menu_items = json.loads(input_data)
+        print(f"Processing {len(menu_items)} menu items", file=sys.stderr)
+        sys.stderr.flush()
+        
+        # Analyze meals
+        results = analyze_meals(menu_items)
+        print("Analysis complete", file=sys.stderr)
+        sys.stderr.flush()
+        
+        # Output results as JSON to stdout
+        sys.stdout.write(json.dumps(results))
+        sys.stdout.flush()
+        
+        print("meals.py finished", file=sys.stderr)
+        sys.stderr.flush()
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error in meals.py: {str(e)}", file=sys.stderr)
+        sys.stderr.flush()
+        sys.exit(1)
