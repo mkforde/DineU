@@ -17,6 +17,42 @@ const index = () => {
     return uniRegex.test(uni);
   };
 
+  const createProfile = async (userId: string, userUni: string, userEmail: string) => {
+    try {
+      // First check if profile exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (existingProfile) return; // Profile already exists
+
+      // Fetch user info from directory
+      const directoryResponse = await fetch(`http://localhost:3000/api/directory/user/${userUni}`);
+      const directoryData = await directoryResponse.json();
+
+      if (directoryData.success) {
+        const { firstName } = directoryData.data;
+        
+        // Create new profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: userId,
+            uni: userUni,
+            email: userEmail,
+            firstName
+          });
+
+        if (profileError) throw profileError;
+      }
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      // Don't throw the error - we still want the user to proceed to home
+    }
+  };
+
   const signInWithEmail = async () => {
     if (!isValidUNI(uni)) {
       setError('Please enter a valid UNI');
@@ -39,17 +75,26 @@ const index = () => {
         Alert.alert('Check your email', 'We sent you a 6-digit code to verify your email');
       } else {
         // Verify OTP
-        const { error: verifyError } = await supabase.auth.verifyOtp({
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
           email: `${uni}@columbia.edu`,
           token: otp,
           type: 'email'
         });
 
         if (verifyError) throw verifyError;
+
+        // Create profile after successful verification
+        if (data?.user) {
+          await createProfile(
+            data.user.id,
+            uni,
+            `${uni}@columbia.edu`
+          );
+        }
         
         router.replace('/home');
       }
-    } catch (error) {
+    } catch (error: any) { // Type assertion to handle the error message
       setError(error.message);
       Alert.alert('Error', error.message);
     } finally {
