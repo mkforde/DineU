@@ -688,7 +688,7 @@ export default function WelcomeScreen() {
         <View style={styles.header}>
           <View style={styles.top} >
             <Text style={styles.title}>
-              Hey {userName || 'there'},
+              Hey {userName || 'there'}
             </Text>
             <Text style={styles.desc}>Today's Recommended Dining Hall is ... <Text style={styles.bold}>{recommendedDining}</Text>!</Text>
           </View>
