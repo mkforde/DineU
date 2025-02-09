@@ -1,22 +1,15 @@
-import { Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, ActivityIndicator, View } from 'react-native'
+import { Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView, ActivityIndicator, View, Alert } from 'react-native'
 import React, { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
 import { useRouter } from 'expo-router'
+import { supabase } from '../lib/supabase'
 
 const index = () => {
   const router = useRouter();
   const [uni, setUni] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  // Listen for auth state changes
-  useEffect(() => {
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        router.replace('/home');
-      }
-    });
-  }, []);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
 
   const isValidUNI = (uni: string) => {
     // Matches 2-3 letters followed by 4 digits (e.g., ma4368)
@@ -24,40 +17,90 @@ const index = () => {
     return uniRegex.test(uni);
   };
 
-  const sendSignInLink = async () => {
-    setError('');
+  const createProfile = async (userId: string, userUni: string, userEmail: string) => {
+    try {
+      // First check if profile exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (existingProfile) return; // Profile already exists
+
+      // Fetch user info from directory
+      const directoryResponse = await fetch(`http://localhost:3000/api/directory/user/${userUni}`);
+      const directoryData = await directoryResponse.json();
+
+      if (directoryData.success) {
+        const { firstName } = directoryData.data;
+        
+        // Create new profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: userId,
+            uni: userUni,
+            email: userEmail,
+            firstName
+          });
+
+        if (profileError) throw profileError;
+      }
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      // Don't throw the error - we still want the user to proceed to home
+    }
+  };
+
+  const signInWithEmail = async () => {
     if (!isValidUNI(uni)) {
-      setError('Please enter a valid UNI (e.g., ma4368)');
+      setError('Please enter a valid UNI');
       return;
     }
 
-    setLoading(true);
     try {
-      const email = `${uni}@columbia.edu`;
-      console.log('Attempting to send OTP to:', email);
+      setLoading(true);
+      setError('');
+      
+      if (!otpSent) {
+        // Request OTP
+        const { error: signInError } = await supabase.auth.signInWithOtp({
+          email: `${uni}@columbia.edu`,
+        });
 
-      // Only send login link
-      const { data, error: signInError } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: 'http://localhost:8081/home'
+        if (signInError) throw signInError;
+        
+        setOtpSent(true);
+        Alert.alert('Check your email', 'We sent you a 6-digit code to verify your email');
+      } else {
+        // Verify OTP
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+          email: `${uni}@columbia.edu`,
+          token: otp,
+          type: 'email'
+        });
+
+        if (verifyError) throw verifyError;
+
+        // Create profile after successful verification
+        if (data?.user) {
+          await createProfile(
+            data.user.id,
+            uni,
+            `${uni}@columbia.edu`
+          );
         }
-      });
-
-      if (signInError) {
-        setError(signInError.message);
-        return;
+        
+        router.replace('/home');
       }
-
-      setUni('');
-      alert(`Sign-in link sent to ${email}`);
-    } catch (error: any) {
-      console.error('Caught error:', error);
-      setError(error.message || 'An error occurred');
+    } catch (error: any) { // Type assertion to handle the error message
+      setError(error.message);
+      Alert.alert('Error', error.message);
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -76,22 +119,33 @@ const index = () => {
         <Text style={styles.emailSuffix}>@columbia.edu</Text>
       </View>
 
+      {otpSent && (
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Enter 6-digit code"
+            value={otp}
+            onChangeText={setOtp}
+            keyboardType="number-pad"
+            maxLength={6}
+          />
+        </View>
+      )}
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <TouchableOpacity 
         style={[styles.button, loading && styles.buttonDisabled]} 
-        onPress={sendSignInLink}
+        onPress={signInWithEmail}
         disabled={loading}
       >
-        {loading ? (
-          <ActivityIndicator color="#FFFFFF" />
-        ) : (
-          <Text style={styles.text}>Send Sign-in Link</Text>
-        )}
+        <Text style={styles.text}>
+          {loading ? 'Loading...' : otpSent ? 'Verify Code' : 'Send Code'}
+        </Text>
       </TouchableOpacity>
     </SafeAreaView>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
