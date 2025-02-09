@@ -23,6 +23,13 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      [
+        "expo-maps",
+        {
+          "requestLocationPermission": "true",
+          "locationPermission": "Allow Dine U to use your location"
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",
