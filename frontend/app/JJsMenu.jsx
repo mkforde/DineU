@@ -206,9 +206,10 @@ export default function menu() {
               {item.nutrition?.calories && (
                 <Text style={styles.calories}>{item.nutrition.calories} cal</Text>
               )}
-              {item.contains && item.contains.length > 0 && (
+              {item.contains && 
+               item.contains.replace(/[{}"\[\]]/g, '').split(',').filter(Boolean).length > 0 && (
                 <Text style={styles.allergens}>
-                  Contains: {item.contains.replace(/[{}]/g, '').split(',').join(', ')}
+                  Contains: {item.contains.replace(/[{}]/g, '').split(',').filter(Boolean).join(', ')}
                 </Text>
               )}
             </View>

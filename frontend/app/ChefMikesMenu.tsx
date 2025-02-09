@@ -118,29 +118,20 @@ export default function menu() {
           <Text style={styles.foodTypeTitle}>{foodType}</Text>
         </View>
         
-        {items.map((item, index) => (
+        {items.map((item: any, index: number) => (
           <View key={index} style={styles.menuItem}>
             <View style={styles.menuItemContent}>
               <View style={styles.menuItemLeft}>
                 <Text style={styles.menuItemName}>{item.foodName}</Text>
-                <View style={styles.menuItemDetails}>
-                  {item.nutrition?.calories && (
-                    <Text style={styles.calories}>{item.nutrition.calories} calories</Text>
-                  )}
-                  {item.contains && 
-                   item.contains.replace(/[{}"\[\]]/g, '').split(',').filter(c => c && c.trim().length > 0).length > 0 && (
-                    <Text style={styles.allergens}>
-                      Contains: {
-                        item.contains
-                          .replace(/[{}"\[\]]/g, '')
-                          .split(',')
-                          .filter(c => c && c.trim().length > 0)
-                          .map(c => c.trim())
-                          .join(', ')
-                      }
-                    </Text>
-                  )}
-                </View>
+                {item.nutrition?.calories && (
+                  <Text style={styles.calories}>{item.nutrition.calories} cal</Text>
+                )}
+                {item.contains && 
+                 item.contains.replace(/[{}"\[\]]/g, '').split(',').filter(Boolean).length > 0 && (
+                  <Text style={styles.allergens}>
+                    Contains: {item.contains.replace(/[{}]/g, '').split(',').filter(Boolean).join(', ')}
+                  </Text>
+                )}
               </View>
               <View style={styles.dietaryIconsContainer}>
                 {item.dietaryPreferences && 
