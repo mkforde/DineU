@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   Alert
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -109,115 +110,119 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer}>
         <Text>Loading profile...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-  <View style = {styles.outercontainer}>
-    <View style={styles.container}>
-      <ScrollView style={{ height: height - 82 }}>
-        {/* Profile Header */}
-        <View style={styles.header}>
-          <Image 
-            source={require("../assets/images/Animal Avatar.png")}
-            style={styles.avatar}
-          />
-          <Text style={styles.name}>
-            {userProfile?.firstName} {userProfile?.lastName}
-          </Text>
-          <Text style={styles.uni}>{userProfile?.uni}</Text>
-        </View>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* Profile Header */}
+          <View style={styles.header}>
+            <Image 
+              source={require("../assets/images/Animal Avatar.png")}
+              style={styles.avatar}
+            />
+            <Text style={styles.name}>
+              {userProfile?.firstName} {userProfile?.lastName}
+            </Text>
+            <Text style={styles.uni}>{userProfile?.uni}</Text>
+          </View>
 
-        {/* Account Settings */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          
-          <TouchableOpacity style={styles.menuItem} onPress={handleEditProfile}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="person-outline" size={24} color="#423934" style={styles.menuIcon} />
-              <Text style={styles.menuText}>Edit profile</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color="#8D7861" />
-          </TouchableOpacity>
+          {/* Account Settings */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Account</Text>
+            
+            <TouchableOpacity style={styles.menuItem} onPress={handleEditProfile}>
+              <View style={styles.menuItemLeft}>
+                <Ionicons name="person-outline" size={24} color="#423934" style={styles.menuIcon} />
+                <Text style={styles.menuText}>Edit profile</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#8D7861" />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('security')}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="shield-outline" size={24} color="#423934" style={styles.menuIcon} />
-              <Text style={styles.menuText}>Security</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color="#8D7861" />
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('security')}>
+              <View style={styles.menuItemLeft}>
+                <Ionicons name="shield-outline" size={24} color="#423934" style={styles.menuIcon} />
+                <Text style={styles.menuText}>Security</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#8D7861" />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('notifications')}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="notifications-outline" size={24} color="#423934" style={styles.menuIcon} />
-              <Text style={styles.menuText}>Notifications</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color="#8D7861" />
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('notifications')}>
+              <View style={styles.menuItemLeft}>
+                <Ionicons name="notifications-outline" size={24} color="#423934" style={styles.menuIcon} />
+                <Text style={styles.menuText}>Notifications</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#8D7861" />
+            </TouchableOpacity>
+          </View>
 
-        {/* Cache & Storage */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cache & cellular</Text>
-          
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('storage')}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="folder-outline" size={24} color="#423934" style={styles.menuIcon} />
-              <Text style={styles.menuText}>Free up space</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color="#8D7861" />
-          </TouchableOpacity>
+          {/* Cache & Storage */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Cache & cellular</Text>
+            
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('storage')}>
+              <View style={styles.menuItemLeft}>
+                <Ionicons name="folder-outline" size={24} color="#423934" style={styles.menuIcon} />
+                <Text style={styles.menuText}>Free up space</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#8D7861" />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('dataSaver')}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="cellular-outline" size={24} color="#423934" style={styles.menuIcon} />
-              <Text style={styles.menuText}>Data Saver</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color="#8D7861" />
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('dataSaver')}>
+              <View style={styles.menuItemLeft}>
+                <Ionicons name="cellular-outline" size={24} color="#423934" style={styles.menuIcon} />
+                <Text style={styles.menuText}>Data Saver</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#8D7861" />
+            </TouchableOpacity>
+          </View>
 
-        {/* Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions</Text>
-          
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('report')}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="flag-outline" size={24} color="#423934" style={styles.menuIcon} />
-              <Text style={styles.menuText}>Report a problem</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color="#8D7861" />
-          </TouchableOpacity>
+          {/* Actions */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Actions</Text>
+            
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('report')}>
+              <View style={styles.menuItemLeft}>
+                <Ionicons name="flag-outline" size={24} color="#423934" style={styles.menuIcon} />
+                <Text style={styles.menuText}>Report a problem</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#8D7861" />
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={handleSignOut}>
-            <View style={styles.menuItemLeft}>
-              <Ionicons name="log-out-outline" size={24} color="#E15C11" style={styles.menuIcon} />
-              <Text style={[styles.menuText, styles.signOutText]}>Sign out</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity style={styles.menuItem} onPress={handleSignOut}>
+              <View style={styles.menuItemLeft}>
+                <Ionicons name="log-out-outline" size={24} color="#E15C11" style={styles.menuIcon} />
+                <Text style={[styles.menuText, styles.signOutText]}>Sign out</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
 
-        <Text style={styles.version}>DINE U v1.0.234.567</Text>
-      </ScrollView>
-      <CustomBottomNav />
-    </View>
-  </View>
+          <Text style={styles.version}>DINE U v1.0.234.567</Text>
+        </ScrollView>
+      </View>
+        <CustomBottomNav />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  outercontainer: {
-    alignItems: "center",
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#FDFECC",
   },
   container: {
     flex: 1,
     backgroundColor: "#FDFECC",
     width: 394,
-    
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
   },
   loadingContainer: {
     flex: 1,
@@ -298,5 +303,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: '#E0E0E0',
-  }
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+  },
 });

@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FDFECC", // Light yellow background
     alignContent: "center",
     width: 393,
-    
+    paddingTop: 47, // Add top padding for iPhone bezel
   }, 
   
   topheader:{

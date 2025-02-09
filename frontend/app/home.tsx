@@ -817,11 +817,10 @@ const styles = StyleSheet.create({
  },
   container: {
     flex: 1,
-    backgroundColor: "#FDFECC", // Light yellow background
+    backgroundColor: "#FDFECC",
     alignContent: "center",
     width: 393,
-  
-    
+    paddingTop: 47, // Add top padding for iPhone bezel
   },
   titleD:{
     fontSize:28,

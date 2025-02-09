@@ -190,11 +190,10 @@ const styles = StyleSheet.create({
  },
   container: {
     flex: 1,
-    backgroundColor: "#FDFECC", // Light yellow background
+    backgroundColor: "#FDFECC",
     alignContent: "center",
     width: 393,
-  
-    
+    paddingTop: 47,
   },
   titleD:{
     fontSize:28,
@@ -339,5 +338,8 @@ const styles = StyleSheet.create({
   },
   progressBarFill: {
     height: "100%",
+  },
+  activeIcon: {
+    tintColor: '#423934',
   },
 });
