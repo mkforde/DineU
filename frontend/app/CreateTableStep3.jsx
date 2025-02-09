@@ -96,56 +96,99 @@ export default function CreateTableStep3() {
 
   const handleSubmit = async () => {
     try {
-      const user = supabase.auth.user();
-      if (!user) {
+      // Get current user's session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) throw sessionError;
+      
+      if (!session?.user) {
         alert('Please sign in to create a table');
         return;
       }
+
+      // Get user's profile to get their UNI
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('uni')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      if (!profile?.uni) {
+        alert('Could not find your UNI. Please update your profile.');
+        return;
+      }
+
+      // Now use the actual UNI from the profile
+      const uni = profile.uni;
+
+      // Generate PIN if table is private
+      const pin = isPrivate ? Math.floor(1000 + Math.random() * 9000).toString() : null;
 
       // Create the table
       const { data: table, error: tableError } = await supabase
         .from('dining_tables')
         .insert({
-          dining_hall: diningHall.id,
+          dining_hall: diningHall.name,
           table_name: tableName,
-          is_private: isPrivate,
-          team_size: tableSize,
-          created_by: user.id,
-          pin: isPrivate ? Math.floor(1000 + Math.random() * 9000).toString() : null
+          privacy: isPrivate ? 'private' : 'public',
+          size: tableSize.toString(),
+          created_by: uni,
+          is_locked: false,
+          current_members: 1,
+          pin: pin  // Store the PIN
         })
+        .select()
         .single();
 
       if (tableError) throw tableError;
 
-      // Add topics
-      const { error: topicsError } = await supabase
-        .from('table_topics')
-        .insert({
-          table_id: table.id,
-          vibe: selectedVibes,
-          interests: selectedInterests
-        });
-
-      if (topicsError) throw topicsError;
-
-      // Add creator as first member
+      // Add member
       const { error: memberError } = await supabase
-        .from('table_members')
+        .from('members')  // Remove 'tables.' prefix
         .insert({
           table_id: table.id,
-          user_id: user.id
+          uni: uni,
+          is_host: true
         });
 
       if (memberError) throw memberError;
 
+      // Get vibes and interests
+      const { data: vibeIds } = await supabase
+        .from('vibes')  // Remove 'tables.' prefix
+        .select('id, name')
+        .in('name', selectedVibes);
+
+      const { data: interestIds } = await supabase
+        .from('interests')  // Remove 'tables.' prefix
+        .select('id, name')
+        .in('name', selectedInterests);
+
+      // Combine all interests
+      const allInterests = [
+        ...(vibeIds || []).map(v => ({ table_id: table.id, interest_id: v.id })),
+        ...(interestIds || []).map(i => ({ table_id: table.id, interest_id: i.id }))
+      ];
+
+      // Add interests
+      const { error: interestsError } = await supabase
+        .from('table_interests')  // Remove 'tables.' prefix
+        .insert(allInterests);
+
+      if (interestsError) throw interestsError;
+
+      // Pass the PIN to GenerateTable
       navigation.navigate('GenerateTable', {
         tableId: table.id,
-        diningHall,
+        diningHall: diningHall.name,
         tableName,
         isPrivate,
         tableSize,
         selectedVibes,
-        selectedInterests
+        selectedInterests,
+        pin  // Pass the PIN
       });
 
     } catch (error) {
@@ -191,8 +234,8 @@ export default function CreateTableStep3() {
       <View style={styles.container}>
         <ScrollView style={{ height: height - 82 }}>
           <View style={styles.top}>
-            <Text style={styles.title}>Set the Vibe</Text>
-            <Text style={styles.subtitle}>for {tableName}</Text>
+            <Text style={styles.title}>Create a table</Text>
+            <Text style={styles.subtitle}>at {diningHall.name}</Text>
             <Image source={require("../assets/images/Progress bar3.png")}/>
           </View>
 

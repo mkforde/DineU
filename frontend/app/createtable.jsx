@@ -67,8 +67,6 @@ export default function WelcomeScreen() {
   
   const DiningButton = ({ title, image, use, capacity }: DiningButtonProps) => {
     const navigation = useNavigation();
-    const diningHall = DINING_HALLS.find(hall => hall.title === title);
-    
     const fillPercentage = use / capacity;
     
     // Determine bar color
@@ -83,13 +81,19 @@ export default function WelcomeScreen() {
       barColor = "#E11111";
     }
 
+    // Create dining hall object with all necessary info
+    const diningHall = {
+      name: title,
+      image: image,
+      use: use,
+      capacity: capacity
+    };
+
     return (
       <TouchableOpacity 
         style={styles.diningButton}
         onPress={() => {
-          navigation.navigate("CreateTableStep2", {
-            diningHall: diningHall
-          });
+          navigation.navigate('CreateTableStep2', { diningHall }); // Pass the full object
         }}
       >
         <ImageBackground source={image} resizeMode="cover" style={styles.imageBackground}>
@@ -122,7 +126,7 @@ export default function WelcomeScreen() {
                     key={hall.id}
                     title={hall.title}
                     image={hall.image}
-                    use={occupancyData[hall.id]?.use || 0}
+                    use={ 0}
                     capacity={hall.capacity}
                   />
                 ))}

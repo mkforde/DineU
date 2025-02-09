@@ -262,59 +262,68 @@ export default function menu() {
             </ImageBackground>
         </View>
 
-        {/* Welcome Text */}
-        <View> 
-          <View style = {styles.stats}>
-            <View style = {styles.stat}>
-              <View style = {styles.nutri}>
-                <Text style = {styles.Stitle}>Nutri-score</Text>
-                <Image source={require("../assets/images/tooltip.png")} />
+        {isOpen === "CLOSED" ? (
+          <View style={styles.closedContainer}>
+            <Text style={styles.closedMessage}>
+              JJ's Place is currently closed.{'\n'}
+              Please check back during operating hours:{'\n'}
+              {timing}
+            </Text>
+          </View>
+        ) : (
+          <View> 
+            <View style = {styles.stats}>
+              <View style = {styles.stat}>
+                <View style = {styles.nutri}>
+                  <Text style = {styles.Stitle}>Nutri-score</Text>
+                  <Image source={require("../assets/images/tooltip.png")} />
+                </View>
+                <View style = {styles.nutri}>
+                  <Text style={styles.Stitle}>Current Seating Capacity</Text>
+                  <Image source={require("../assets/images/tooltip.png")} />
+                </View>
               </View>
-              <View style = {styles.nutri}>
-                <Text style={styles.Stitle}>Current Seating Capacity</Text>
-                <Image source={require("../assets/images/tooltip.png")} />
-              </View>
-            </View>
-            <View style={styles.imageM}>
-              <Image source={require("../assets/images/NutriB.png")} />
-              <View style={styles.capacityContainer}>
-                <Text style={[styles.capacityText, { color: '#423934' }]}>
-                  {occupancyData.use}/{occupancyData.capacity}
-                </Text>
-                <View style={styles.progressBarContainer}>
-                  <View style={[
-                    styles.progressBarFill, 
-                    { 
-                      width: `${(occupancyData.use / occupancyData.capacity) * 100}%`,
-                      backgroundColor: occupancyData.use / occupancyData.capacity < 0.25 ? "#9AD94B" :
-                                     occupancyData.use / occupancyData.capacity <= 0.5 ? "#FFC632" :
-                                     occupancyData.use / occupancyData.capacity <= 0.75 ? "#E15C11" : 
-                                     "#E11111"
-                    }
-                  ]} />
+              <View style={styles.imageM}>
+                <Image source={require("../assets/images/NutriB.png")} />
+                <View style={styles.capacityContainer}>
+                  <Text style={[styles.capacityText, { color: '#423934' }]}>
+                    {occupancyData.use}/{occupancyData.capacity}
+                  </Text>
+                  <View style={styles.progressBarContainer}>
+                    <View style={[
+                      styles.progressBarFill, 
+                      { 
+                        width: `${(occupancyData.use / occupancyData.capacity) * 100}%`,
+                        backgroundColor: occupancyData.use / occupancyData.capacity < 0.25 ? "#9AD94B" :
+                                       occupancyData.use / occupancyData.capacity <= 0.5 ? "#FFC632" :
+                                       occupancyData.use / occupancyData.capacity <= 0.75 ? "#E15C11" : 
+                                       "#E11111"
+                      }
+                    ]} />
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
 
-          <View  style={styles.menuTitle}>
-            <Text style={styles.titleM}>Menu</Text>
-          </View>
-          {renderMenu()}
-          <View style={styles.reviewsContainer}>
-            <Text style={styles.sectionTitle}>Reviews</Text>
-            {reviews.map((review, index) => (
-              <View key={index} style={styles.reviewItem}>
-                <Text style={styles.reviewText}>
-                  <Text style={styles.bold}>{review.name}</Text>: {review.comment}
-                </Text>
-                <View style={styles.starContainer}>{renderStars(review.rating)}</View>
-              </View>
-            ))}
-          </View>
+            <View  style={styles.menuTitle}>
+              <Text style={styles.titleM}>Menu</Text>
+            </View>
+            {renderMenu()}
+            <View style={styles.reviewsContainer}>
+              <Text style={styles.sectionTitle}>Reviews</Text>
+              {reviews.map((review, index) => (
+                <View key={index} style={styles.reviewItem}>
+                  <Text style={styles.reviewText}>
+                    <Text style={styles.bold}>{review.name}</Text>: {review.comment}
+                  </Text>
+                  <View style={styles.starContainer}>{renderStars(review.rating)}</View>
+                </View>
+              ))}
+            </View>
 
 
-        </View>
+          </View>
+        )}
        
 
       </ScrollView>
@@ -596,5 +605,19 @@ overlay: {
     fontSize: 14,
     color: '#666',
     marginTop: 2,
+  },
+  closedContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    marginTop: 40,
+  },
+  closedMessage: {
+    fontSize: 18,
+    textAlign: 'center',
+    color: '#423934',
+    lineHeight: 28,
+    fontWeight: '500',
   },
 });

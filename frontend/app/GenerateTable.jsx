@@ -52,47 +52,28 @@ export default function GenerateTable() {
   const { height } = useWindowDimensions();
   const route = useRoute();
   const navigation = useNavigation();
-  const [pin, setPin] = useState(null);
   const [tableData, setTableData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { tableId } = route.params;
+  const [showPinOverlay, setShowPinOverlay] = useState(true);
   
-  const {
+  // Get all params from route
+  const { 
+    tableId,
     diningHall = "",
     tableName = "",
     isPrivate = false,
     tableSize = 2,
     selectedVibes = [],
-    selectedInterests = []
+    selectedInterests = [],
+    pin = null
   } = route.params || {};
-
-  // Store all table data in one object for future use
-  const tableDataObj = {
-    diningHall,
-    tableName,
-    isPrivate,
-    tableSize,
-    pin,
-    selectedVibes,
-    selectedInterests,
-    createdAt: new Date().toISOString(),
-    // Add any additional metadata you want to store
-  };
 
   useEffect(() => {
     if (isPrivate) {
-      // Generate a random 4-digit PIN
-      const generatedPin = Math.floor(1000 + Math.random() * 9000);
-      setPin(generatedPin);
-      
-      // Store the table data (you can implement your storage logic here)
-      // For example: storeTableData(tableData);
-      
+      // No need to generate PIN here anymore since it's created in CreateTableStep3
     } else {
       // If public, wait 3 seconds then navigate to table.tsx
       const timer = setTimeout(() => {
-        // Store the table data before navigating
-        // storeTableData(tableData);
         navigation.navigate('table');
       }, 3000);
       
@@ -103,24 +84,46 @@ export default function GenerateTable() {
   useEffect(() => {
     async function fetchTableData() {
       try {
+        // Fetch table details
         const { data: table, error: tableError } = await supabase
           .from('dining_tables')
-          .select(`
-            *,
-            table_topics (*),
-            table_members (
-              user_id,
-              profiles:auth.users!user_id (
-                firstName,
-                lastName
-              )
-            )
-          `)
+          .select('*')
           .eq('id', tableId)
           .single();
 
         if (tableError) throw tableError;
-        setTableData(table);
+
+        // Fetch table interests (both vibes and regular interests)
+        const { data: tableInterests, error: interestsError } = await supabase
+          .from('table_interests')
+          .select(`
+            table_id,
+            interest_id,
+            interest:interests (
+              id,
+              name
+            )
+          `)
+          .eq('table_id', tableId);
+
+        if (interestsError) throw interestsError;
+
+        // Fetch current members
+        const { data: members, error: membersError } = await supabase
+          .from('members')
+          .select('*')
+          .eq('table_id', tableId)
+          .is('left_at', null);
+
+        if (membersError) throw membersError;
+
+        // Combine all data
+        setTableData({
+          ...table,
+          interests: tableInterests.map(ti => ti.interest.name),
+          members: members
+        });
+
       } catch (error) {
         console.error('Error fetching table data:', error);
         alert('Failed to load table data');
@@ -129,7 +132,9 @@ export default function GenerateTable() {
       }
     }
 
-    fetchTableData();
+    if (tableId) {
+      fetchTableData();
+    }
   }, [tableId]);
 
   const handleSubmit = () => {
@@ -179,14 +184,79 @@ export default function GenerateTable() {
     );
   };
 
+  const joinTable = async () => {
+    try {
+      // Get current user's session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) throw sessionError;
+      
+      if (!session?.user) {
+        alert('Please sign in to join a table');
+        return;
+      }
+
+      // Get user's profile to get their UNI
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('uni')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      if (!profile?.uni) {
+        alert('Could not find your UNI. Please update your profile.');
+        return;
+      }
+
+      // Use the stored procedure with the actual UNI
+      const { error } = await supabase.rpc('join_table', {
+        p_table_id: tableId,
+        p_uni: profile.uni
+      });
+
+      if (error) throw error;
+
+      // Refresh table data after joining
+      fetchTableData();
+
+    } catch (error) {
+      console.error('Error joining table:', error);
+      alert('Failed to join table. Please try again.');
+    }
+  };
+
   return (
     <View style={styles.body}>
+      {/* PIN Overlay for private tables */}
+      {showPinOverlay && isPrivate && (tableData?.pin || pin) && (
+        <View style={styles.overlay}>
+          <View style={styles.pinOverlayCard}>
+            <Text style={styles.pinOverlayTitle}>Your Table PIN</Text>
+            <Text style={styles.pinOverlayValue}>{tableData?.pin || pin}</Text>
+            <Text style={styles.pinOverlayNote}>
+              Make sure to save this PIN! {'\n'}
+              You'll need it to share with friends who want to join.
+            </Text>
+            <TouchableOpacity 
+              style={styles.gotItButton}
+              onPress={() => setShowPinOverlay(false)}
+            >
+              <Text style={styles.gotItButtonText}>Got it!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <View style={styles.container}>
         <ScrollView style={{ height: height - 82 }}>
           <View style={styles.top}>
-            <Text style={styles.title}>{tableName}</Text>
-            <Text style={styles.subtitle}>at {diningHall}</Text>
+            <Text style={styles.title}>{tableData?.table_name || tableName}</Text>
+            <Text style={styles.subtitle}>at {diningHall.name}</Text>
           </View>
+          
+        
 
           <View style={styles.infoContainer}>
             {/* Table Details */}
@@ -201,10 +271,10 @@ export default function GenerateTable() {
                   <Text style={styles.label}>Capacity:</Text>
                   <Text style={styles.value}>{tableSize} people</Text>
                 </View>
-                {isPrivate && pin && (
+                {isPrivate && (
                   <View style={styles.pinContainer}>
                     <Text style={styles.pinLabel}>Table PIN:</Text>
-                    <Text style={styles.pinValue}>{pin}</Text>
+                    <Text style={styles.pinValue}>{tableData?.pin || pin}</Text>
                     <Text style={styles.pinNote}>Share this PIN with people you want to join your table</Text>
                     <TouchableOpacity 
                       style={styles.backButton}
@@ -420,8 +490,61 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  pinOverlayCard: {
+    backgroundColor: 'white',
+    padding: 24,
+    borderRadius: 16,
+    width: 394,
+    alignItems: 'center',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  pinOverlayTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#423934',
+    marginBottom: 16,
+  },
+  pinOverlayValue: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#E15C11',
+    marginBottom: 16,
+    letterSpacing: 4,
+  },
+  pinOverlayNote: {
+    fontSize: 16,
+    color: '#666666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  gotItButton: {
+    backgroundColor: '#E15C11',
+    paddingVertical: 12,
+    paddingHorizontal: 48,
+    borderRadius: 8,
+  },
+  gotItButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '600',
   },
   buttonText: {
     fontSize: 17.55,
@@ -442,5 +565,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     textAlign: "center",
+  },
+  statsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  statsText: {
+    fontSize: 16,
+    color: "#423934",
+    fontWeight: "500",
   },
 });

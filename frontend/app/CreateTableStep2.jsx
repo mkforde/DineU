@@ -53,8 +53,14 @@ export default function CreateTableStep2() {
   const navigation = useNavigation();
   const route = useRoute();
   
-  // Add null check and default value
-  const diningHall = route.params?.diningHall || "Selected Dining Hall";
+  // Get the dining hall object from route params
+  const diningHall = route.params?.diningHall;
+
+  if (!diningHall) {
+    // If no dining hall was selected, go back to selection
+    navigation.navigate('createtable');
+    return null;
+  }
 
   const [tableName, setTableName] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
@@ -81,14 +87,31 @@ export default function CreateTableStep2() {
   };
 
   const handleSubmit = async () => {
-    if (tableName.length === 0 || tableName.length > 10) return;
-
-    const isValid = await validateTableName(tableName);
-    if (!isValid) {
-      alert('Table name already exists in this dining hall');
+    if (tableName.length === 0 || tableName.length > 10) {
+      alert('Table name must be between 1 and 10 characters');
       return;
     }
 
+    // Check if table name exists
+    const { data: existingTable, error: checkError } = await supabase
+      .from('dining_tables')
+      .select('id')
+      .eq('dining_hall', diningHall.name)  // Use diningHall.name here
+      .eq('table_name', tableName)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('Error checking table name:', checkError);
+      alert('Error checking table name availability');
+      return;
+    }
+
+    if (existingTable) {
+      alert('This table name is already taken in this dining hall');
+      return;
+    }
+
+    // If all checks pass, navigate to next step
     navigation.navigate('CreateTableStep3', {
       diningHall,
       tableName,
@@ -135,7 +158,7 @@ export default function CreateTableStep2() {
         <ScrollView style={{ height: height - 82 }}>
           <View style={styles.top}>
             <Text style={styles.title}>Create a table</Text>
-            <Text style={styles.subtitle}>at {diningHall}</Text>
+            <Text style={styles.subtitle}>at {diningHall.name}</Text>
             <Image source={require("../assets/images/Project bar 2.png")}/>
           </View>
 

@@ -182,9 +182,19 @@ export default function menu() {
             </ImageBackground>
           </View>
 
-          <View style={styles.menuContainer}>
-            {renderMenu()}
-          </View>
+          {isOpen === "CLOSED" ? (
+            <View style={styles.closedContainer}>
+              <Text style={styles.closedMessage}>
+                Diana Center Cafe is currently closed.{'\n'}
+                Please check back during operating hours:{'\n'}
+                {timing}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.menuContainer}>
+              {renderMenu()}
+            </View>
+          )}
         </ScrollView>
       </View>
     </View>
@@ -445,5 +455,19 @@ overlay: {
   dietaryIconsContainer: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  closedContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    marginTop: 40,
+  },
+  closedMessage: {
+    fontSize: 18,
+    textAlign: 'center',
+    color: '#423934',
+    lineHeight: 28,
+    fontWeight: '500',
   },
 });
