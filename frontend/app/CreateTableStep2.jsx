@@ -155,7 +155,7 @@ export default function CreateTableStep2() {
   return (
     <View style={styles.body}>
       <View style={styles.container}>
-        <ScrollView style={{ height: height - 82 }}>
+        <ScrollView style={{ height: height - 82, marginBottom: 80 }}>
           <View style={styles.top}>
             <Text style={styles.title}>Create a table</Text>
             <Text style={styles.subtitle}>at {diningHall.name}</Text>
@@ -220,6 +220,15 @@ export default function CreateTableStep2() {
             <Text style={styles.submitButtonText}>Continue</Text>
           </TouchableOpacity>
         </ScrollView>
+        
+        <View style={styles.closeButtonContainer}>
+          <TouchableOpacity 
+            style={styles.closeButton}
+            onPress={() => navigation.navigate('table')}
+          >
+            <Text style={styles.closeButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -366,5 +375,24 @@ const styles = StyleSheet.create({
     color: "#FFFFFF", // Light yellow text
     fontWeight: "900",
     marginLeft: "5%",
+  },
+  closeButtonContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 20,
+    backgroundColor: "#FFFFFF",
+  },
+  closeButton: {
+    backgroundColor: "#E15C11",
+    padding: 16,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  closeButtonText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "600",
   },
 });
