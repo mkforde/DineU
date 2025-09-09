@@ -44,14 +44,9 @@ DineU revolutionizes campus dining by combining real-time dining hall informatio
 - **AI/ML**: Custom recommendation engine
 - **Maps**: React Native Maps
 
-## 📱 Screenshots
+## Pitch Deck
 
-<p align="center">
-  <!-- Add your app screenshots here -->
-  <img src="assets/screenshot1.png" width="200" />
-  <img src="assets/screenshot2.png" width="200" />
-  <img src="assets/screenshot3.png" width="200" />
-</p>
+[View pitch deck](https://www.figma.com/slides/vSUFWIVAWchbc67kZvNqg6/DINE-U-Pitch-Deck)
 
 ## 🚀 Getting Started
 
@@ -77,13 +72,11 @@ npm install
 
 ```bash
 npx expo start
-
-# ensure that link to server is updated in TSX files
 ```
 
 ## 👥 Team
 
-- **Ahmed** -
-- **Michael** - [portfolio](https://michaelforde.com)
-- **Mohammed** -
-- **Alice** -
+- **Ahmed**
+- **Michael** ([personal portfolio](https://michaelforde.com))
+- **Mohammed**
+- **Alice**
